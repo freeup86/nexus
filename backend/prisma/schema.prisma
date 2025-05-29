@@ -1,0 +1,664 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  username        String            @unique
+  password        String
+  firstName       String?
+  lastName        String?
+  profilePicture  String?
+  role            String            @default("USER")
+  isActive        Boolean           @default(true)
+  emailVerified   Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  apiKeys         ApiKey[]
+  CommunityShares CommunityShares[]
+  contracts       Contract[]
+  decisions       Decision[]
+  DIYProjects     DIYProjects[]
+  HelpRequests    HelpRequests[]
+  HelpResponses   HelpResponses[]
+  notifications   Notification[]
+  ProjectComments ProjectComments[]
+  ProjectLikes    ProjectLikes[]
+  sessions        Session[]
+  textExtractions TextExtraction[]
+  tweets          Tweet[]
+  UserInventory   UserInventory[]
+  Trips           Trips[]
+  TripCompanions  TripCompanions[]
+  TripTemplates   TripTemplates[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  key       String   @unique
+  service   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Decision {
+  id           String             @id(map: "PK_Decision") @default(uuid())
+  userId       String
+  title        String             @db.NVarChar(255)
+  description  String?            @db.NVarChar(Max)
+  decisionType String?            @db.NVarChar(100)
+  status       String?            @default("active", map: "DF__Decision__status__1BC821DD") @db.NVarChar(50)
+  createdAt    DateTime           @default(now(), map: "DF__Decision__create__1CBC4616")
+  updatedAt    DateTime           @default(now(), map: "DF__Decision__update__1DB06A4F") @updatedAt
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_Decision_User")
+  analyses     DecisionAnalysis[]
+  criteria     DecisionCriteria[]
+  options      DecisionOption[]
+  scenarios    DecisionScenario[]
+  scores       DecisionScore[]
+}
+
+model DecisionCriteria {
+  id            String          @id(map: "PK_DecisionCriteria") @default(uuid())
+  decisionId    String
+  name          String          @db.NVarChar(255)
+  description   String?         @db.NVarChar(Max)
+  weight        Float
+  criteriaOrder Int?
+  decision      Decision        @relation(fields: [decisionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_DecisionCriteria_Decision")
+  scores        DecisionScore[]
+}
+
+model DecisionOption {
+  id          String          @id(map: "PK_DecisionOption") @default(uuid())
+  decisionId  String
+  name        String          @db.NVarChar(255)
+  description String?         @db.NVarChar(Max)
+  optionOrder Int?
+  decision    Decision        @relation(fields: [decisionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_DecisionOption_Decision")
+  scores      DecisionScore[]
+}
+
+model DecisionScore {
+  id         String           @id(map: "PK_DecisionScore") @default(uuid())
+  decisionId String
+  optionId   String
+  criteriaId String
+  score      Float
+  criteria   DecisionCriteria @relation(fields: [criteriaId], references: [id], onUpdate: NoAction, map: "FK_DecisionScore_Criteria")
+  decision   Decision         @relation(fields: [decisionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_DecisionScore_Decision")
+  option     DecisionOption   @relation(fields: [optionId], references: [id], onUpdate: NoAction, map: "FK_DecisionScore_Option")
+
+  @@unique([optionId, criteriaId], map: "UQ_DecisionScore_Option_Criteria")
+}
+
+model DecisionAnalysis {
+  id               String   @id(map: "PK_DecisionAnalysis") @default(uuid())
+  decisionId       String
+  analysisType     String   @db.NVarChar(100)
+  results          String   @db.NVarChar(Max)
+  aiRecommendation String?  @db.NVarChar(Max)
+  confidenceScore  Float?
+  createdAt        DateTime @default(now(), map: "DF__DecisionA__creat__2CF2ADDF")
+  decision         Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_DecisionAnalysis_Decision")
+}
+
+model DecisionScenario {
+  id          String   @id(map: "PK_DecisionScenario") @default(uuid())
+  decisionId  String
+  name        String   @db.NVarChar(255)
+  description String?  @db.NVarChar(Max)
+  variables   String   @db.NVarChar(Max)
+  outcomes    String   @db.NVarChar(Max)
+  probability Float?
+  createdAt   DateTime @default(now(), map: "DF__DecisionS__creat__30C33EC3")
+  decision    Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_DecisionScenario_Decision")
+}
+
+model Tweet {
+  id           String    @id @default(uuid())
+  userId       String
+  content      String    @db.NVarChar(280)
+  topic        String?
+  tone         String?
+  status       String    @default("DRAFT")
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  twitterId    String?
+  likes        Int       @default(0)
+  retweets     Int       @default(0)
+  replies      Int       @default(0)
+  impressions  Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TextExtraction {
+  id             String   @id @default(uuid())
+  userId         String
+  fileName       String
+  fileType       String
+  fileSize       Int
+  filePath       String
+  extractedText  String   @db.NVarChar(Max)
+  metadata       String?  @db.NVarChar(Max)
+  processingTime Int
+  status         String   @default("PENDING")
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Contract {
+  id           String            @id @default(uuid())
+  userId       String
+  fileName     String
+  fileType     String
+  fileSize     Int
+  filePath     String
+  originalText String            @db.NVarChar(Max)
+  status       String            @default("PENDING")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis     ContractAnalysis?
+}
+
+model ContractAnalysis {
+  id             String   @id @default(uuid())
+  contractId     String   @unique
+  summary        String   @db.NVarChar(Max)
+  keyTerms       String   @db.NVarChar(Max)
+  risks          String   @db.NVarChar(Max)
+  obligations    String   @db.NVarChar(Max)
+  importantDates String   @db.NVarChar(Max)
+  plainEnglish   String   @db.NVarChar(Max)
+  aiModel        String
+  processingTime Int
+  createdAt      DateTime @default(now())
+  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String   @db.NVarChar(Max)
+  type      String
+  isRead    Boolean  @default(false)
+  metadata  String?  @db.NVarChar(Max)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.NVarChar(Max)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CommunityShares {
+  id              String            @id @default(uuid()) @db.UniqueIdentifier
+  projectId       String            @db.UniqueIdentifier
+  userId          String
+  title           String?           @db.NVarChar(255)
+  description     String?           @db.NVarChar(Max)
+  tags            String?           @db.NVarChar(Max)
+  isPublic        Boolean?          @default(true)
+  viewCount       Int?              @default(0)
+  likeCount       Int?              @default(0)
+  allowComments   Boolean?          @default(true)
+  featuredPhotoId String?           @db.UniqueIdentifier
+  sharedAt        DateTime?         @default(now())
+  updatedAt       DateTime?         @default(now())
+  ProjectPhotos   ProjectPhotos?    @relation(fields: [featuredPhotoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  DIYProjects     DIYProjects       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User            User              @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  ProjectComments ProjectComments[]
+  ProjectLikes    ProjectLikes[]
+
+  @@index([projectId], map: "IX_CommunityShares_ProjectId")
+}
+
+model DIYProjects {
+  id                 String              @id @default(uuid()) @db.UniqueIdentifier
+  userId             String
+  title              String              @db.NVarChar(255)
+  description        String?             @db.NVarChar(Max)
+  projectType        String?             @db.NVarChar(100)
+  difficultyLevel    String?             @db.NVarChar(50)
+  status             String?             @default("planning") @db.NVarChar(50)
+  estimatedDuration  Int?
+  actualDuration     Int?
+  estimatedCost      Decimal?            @db.Decimal(10, 2)
+  actualCost         Decimal?            @db.Decimal(10, 2)
+  progressPercentage Int?                @default(0)
+  startDate          DateTime?
+  completionDate     DateTime?
+  aiProjectPlan      String?             @db.NVarChar(Max)
+  createdAt          DateTime?           @default(now())
+  updatedAt          DateTime?           @default(now())
+  CommunityShares    CommunityShares[]
+  User               User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  HelpRequests       HelpRequests[]
+  ProjectIssues      ProjectIssues[]
+  ProjectMilestones  ProjectMilestones[]
+  ProjectPhotos      ProjectPhotos[]
+  ProjectSupplies    ProjectSupplies[]
+  ProjectTools       ProjectTools[]
+
+  @@index([status])
+  @@index([userId])
+}
+
+model HelpRequests {
+  id            String          @id(map: "PK__HelpRequ__3213E83F4993D167") @default("newid()", map: "DF__HelpRequests__id__02C769E9")
+  projectId     String
+  userId        String
+  title         String          @db.NVarChar(255)
+  description   String?         @db.NVarChar(Max)
+  requestType   String?         @db.NVarChar(100)
+  status        String?         @default("open", map: "DF__HelpReque__statu__03BB8E22") @db.NVarChar(50)
+  photoId       String?
+  createdAt     DateTime?       @default(now(), map: "DF__HelpReque__creat__04AFB25B")
+  resolvedAt    DateTime?
+  ProjectPhotos ProjectPhotos?  @relation(fields: [photoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK__HelpReque__photo__078C1F06")
+  DIYProjects   DIYProjects     @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK__HelpReque__proje__05A3D694")
+  User          User            @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "FK__HelpReque__userI__0697FACD")
+  HelpResponses HelpResponses[]
+
+  @@index([projectId], map: "IX_HelpRequests_ProjectId")
+  @@index([status], map: "IX_HelpRequests_Status")
+}
+
+model HelpResponses {
+  id               String       @id(map: "PK__HelpResp__3213E83FEF0DF687") @default("newid()", map: "DF__HelpResponse__id__0A688BB1")
+  requestId        String
+  userId           String
+  responseText     String?      @db.NVarChar(Max)
+  isAcceptedAnswer Boolean?     @default(false, map: "DF__HelpRespo__isAcc__0B5CAFEA")
+  helpfulCount     Int?         @default(0, map: "DF__HelpRespo__helpf__0C50D423")
+  createdAt        DateTime?    @default(now(), map: "DF__HelpRespo__creat__0D44F85C")
+  HelpRequests     HelpRequests @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK__HelpRespo__reque__0E391C95")
+  User             User         @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "FK__HelpRespo__userI__0F2D40CE")
+}
+
+model ProjectComments {
+  id                    String            @id(map: "PK__ProjectC__3213E83FF035D197") @default("newid()", map: "DF__ProjectComme__id__1209AD79")
+  shareId               String
+  userId                String
+  commentText           String?           @db.NVarChar(Max)
+  parentCommentId       String?
+  likeCount             Int?              @default(0, map: "DF__ProjectCo__likeC__12FDD1B2")
+  createdAt             DateTime?         @default(now(), map: "DF__ProjectCo__creat__13F1F5EB")
+  updatedAt             DateTime?         @default(now(), map: "DF__ProjectCo__updat__14E61A24")
+  ProjectComments       ProjectComments?  @relation("ProjectCommentsToProjectComments", fields: [parentCommentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK__ProjectCo__paren__17C286CF")
+  other_ProjectComments ProjectComments[] @relation("ProjectCommentsToProjectComments")
+  CommunityShares       CommunityShares   @relation(fields: [shareId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK__ProjectCo__share__15DA3E5D")
+  User                  User              @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "FK__ProjectCo__userI__16CE6296")
+}
+
+model ProjectIssues {
+  id            String         @id @default(uuid()) @db.UniqueIdentifier
+  projectId     String         @db.UniqueIdentifier
+  photoId       String?        @db.UniqueIdentifier
+  issueType     String?        @db.NVarChar(100)
+  description   String?        @db.NVarChar(Max)
+  severity      String?        @db.NVarChar(50)
+  status        String?        @default("open") @db.NVarChar(50)
+  aiDetected    Boolean?       @default(false)
+  aiSuggestions String?        @db.NVarChar(Max)
+  resolution    String?        @db.NVarChar(Max)
+  createdAt     DateTime?      @default(now())
+  resolvedAt    DateTime?
+  ProjectPhotos ProjectPhotos? @relation(fields: [photoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  DIYProjects   DIYProjects    @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model ProjectLikes {
+  id              String          @id(map: "PK__ProjectL__3213E83F72A4A973") @default("newid()", map: "DF__ProjectLikes__id__1B9317B3")
+  shareId         String
+  userId          String
+  createdAt       DateTime?       @default(now(), map: "DF__ProjectLi__creat__1C873BEC")
+  CommunityShares CommunityShares @relation(fields: [shareId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK__ProjectLi__share__1D7B6025")
+  User            User            @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "FK__ProjectLi__userI__1E6F845E")
+
+  @@unique([shareId, userId], map: "UQ_ProjectLikes_User_Share")
+}
+
+model ProjectMilestones {
+  id                String      @id @default(uuid()) @db.UniqueIdentifier
+  projectId         String      @db.UniqueIdentifier
+  title             String      @db.NVarChar(255)
+  description       String?     @db.NVarChar(Max)
+  estimatedDuration Int?
+  actualDuration    Int?
+  stepOrder         Int?
+  status            String?     @default("pending") @db.NVarChar(50)
+  dependencies      String?     @db.NVarChar(Max)
+  completedAt       DateTime?
+  createdAt         DateTime?   @default(now())
+  DIYProjects       DIYProjects @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([projectId])
+}
+
+model ProjectPhotos {
+  id              String            @id @default(uuid()) @db.UniqueIdentifier
+  projectId       String            @db.UniqueIdentifier
+  fileName        String            @db.NVarChar(255)
+  filePath        String            @db.NVarChar(500)
+  fileSize        Int?
+  photoType       String?           @db.NVarChar(50)
+  stepNumber      Int?
+  caption         String?           @db.NVarChar(Max)
+  voiceNote       String?           @db.NVarChar(Max)
+  aiAnalysis      String?           @db.NVarChar(Max)
+  thumbnailPath   String?           @db.NVarChar(500)
+  takenAt         DateTime?         @default(now())
+  CommunityShares CommunityShares[]
+  HelpRequests    HelpRequests[]
+  ProjectIssues   ProjectIssues[]
+  DIYProjects     DIYProjects       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([projectId])
+}
+
+model ProjectSupplies {
+  id            String      @id @default(uuid()) @db.UniqueIdentifier
+  projectId     String      @db.UniqueIdentifier
+  itemName      String      @db.NVarChar(255)
+  category      String?     @db.NVarChar(100)
+  quantity      Decimal?    @db.Decimal(10, 2)
+  unit          String?     @db.NVarChar(50)
+  estimatedCost Decimal?    @db.Decimal(10, 2)
+  actualCost    Decimal?    @db.Decimal(10, 2)
+  isOwned       Boolean?    @default(false)
+  isPurchased   Boolean?    @default(false)
+  supplier      String?     @db.NVarChar(255)
+  purchaseUrl   String?     @db.NVarChar(500)
+  notes         String?     @db.NVarChar(Max)
+  createdAt     DateTime?   @default(now())
+  DIYProjects   DIYProjects @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([projectId])
+}
+
+model ProjectTools {
+  id                     String      @id(map: "PK__ProjectT__3213E83FCFD7EDB9") @default("newid()", map: "DF__ProjectTools__id__7D0E9093")
+  projectId              String
+  toolName               String      @db.NVarChar(255)
+  toolType               String?     @db.NVarChar(100)
+  isRequired             Boolean?    @default(true, map: "DF__ProjectTo__isReq__7E02B4CC")
+  isOwned                Boolean?    @default(false, map: "DF__ProjectTo__isOwn__7EF6D905")
+  rentalCost             Decimal?    @db.Decimal(10, 2)
+  purchaseCost           Decimal?    @db.Decimal(10, 2)
+  alternativeSuggestions String?     @db.NVarChar(Max)
+  DIYProjects            DIYProjects @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK__ProjectTo__proje__7FEAFD3E")
+}
+
+model UserInventory {
+  id                    String    @id(map: "PK__UserInve__3213E83F11597ECD") @default("newid()", map: "DF__UserInventor__id__76619304")
+  userId                String
+  itemName              String    @db.NVarChar(255)
+  category              String?   @db.NVarChar(100)
+  quantity              Decimal?  @db.Decimal(10, 2)
+  unit                  String?   @db.NVarChar(50)
+  location              String?   @db.NVarChar(255)
+  purchaseDate          DateTime? @db.Date
+  purchasePrice         Decimal?  @db.Decimal(10, 2)
+  expirationDate        DateTime? @db.Date
+  condition             String?   @db.NVarChar(50)
+  isAvailableForLending Boolean?  @default(false, map: "DF__UserInven__isAva__7755B73D")
+  notes                 String?   @db.NVarChar(Max)
+  createdAt             DateTime? @default(now(), map: "DF__UserInven__creat__7849DB76")
+  updatedAt             DateTime? @default(now(), map: "DF__UserInven__updat__793DFFAF")
+  User                  User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK__UserInven__userI__7A3223E8")
+
+  @@index([userId], map: "IX_UserInventory_UserId")
+}
+
+// Travel & Trip Planner Models
+model Trips {
+  id                 String              @id @default(uuid()) @db.UniqueIdentifier
+  userId             String
+  title              String              @db.NVarChar(255)
+  description        String?             @db.NVarChar(Max)
+  destination        String              @db.NVarChar(255)
+  startDate          DateTime            @db.Date
+  endDate            DateTime            @db.Date
+  status             String?             @default("planning") @db.NVarChar(50)
+  tripType           String?             @db.NVarChar(50)
+  totalBudget        Decimal?            @db.Decimal(10, 2)
+  actualSpent        Decimal?            @default(0) @db.Decimal(10, 2)
+  currency           String?             @default("USD") @db.NVarChar(3)
+  coverPhoto         String?             @db.NVarChar(500)
+  isPublic           Boolean?            @default(false)
+  createdAt          DateTime?           @default(now())
+  updatedAt          DateTime?           @default(now())
+  User               User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  TripItineraries    TripItineraries[]
+  TripExpenses       TripExpenses[]
+  TripBudgets        TripBudgets[]
+  PackingLists       PackingLists[]
+  TripDocuments      TripDocuments[]
+  TripCompanions     TripCompanions[]
+  TripPhotos         TripPhotos[]
+  TripNotes          TripNotes[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model TripItineraries {
+  id              String           @id @default(uuid()) @db.UniqueIdentifier
+  tripId          String           @db.UniqueIdentifier
+  dayNumber       Int
+  date            DateTime         @db.Date
+  title           String?          @db.NVarChar(255)
+  description     String?          @db.NVarChar(Max)
+  createdAt       DateTime?        @default(now())
+  Trips           Trips            @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ItineraryItems  ItineraryItems[]
+
+  @@index([tripId])
+}
+
+model ItineraryItems {
+  id               String            @id @default(uuid()) @db.UniqueIdentifier
+  itineraryId      String            @db.UniqueIdentifier
+  startTime        DateTime?         @db.Time
+  endTime          DateTime?         @db.Time
+  title            String            @db.NVarChar(255)
+  description      String?           @db.NVarChar(Max)
+  location         String?           @db.NVarChar(500)
+  address          String?           @db.NVarChar(500)
+  latitude         Decimal?          @db.Decimal(10, 8)
+  longitude        Decimal?          @db.Decimal(11, 8)
+  category         String?           @db.NVarChar(50)
+  cost             Decimal?          @db.Decimal(10, 2)
+  bookingReference String?           @db.NVarChar(255)
+  bookingUrl       String?           @db.NVarChar(500)
+  notes            String?           @db.NVarChar(Max)
+  itemOrder        Int?
+  createdAt        DateTime?         @default(now())
+  TripItineraries  TripItineraries   @relation(fields: [itineraryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  TripExpenses     TripExpenses[]
+  TripPhotos       TripPhotos[]
+  TripNotes        TripNotes[]
+
+  @@index([itineraryId])
+}
+
+model TripExpenses {
+  id                  String               @id @default(uuid()) @db.UniqueIdentifier
+  tripId              String               @db.UniqueIdentifier
+  itineraryItemId     String?              @db.UniqueIdentifier
+  date                DateTime             @db.Date
+  category            String               @db.NVarChar(50)
+  description         String               @db.NVarChar(255)
+  amount              Decimal              @db.Decimal(10, 2)
+  currency            String?              @default("USD") @db.NVarChar(3)
+  paymentMethod       String?              @db.NVarChar(50)
+  receipt             String?              @db.NVarChar(500)
+  notes               String?              @db.NVarChar(Max)
+  createdAt           DateTime?            @default(now())
+  Trips               Trips                @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ItineraryItems      ItineraryItems?      @relation(fields: [itineraryItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  TripSharedExpenses  TripSharedExpenses[]
+
+  @@index([tripId])
+  @@index([date])
+}
+
+model TripBudgets {
+  id             String    @id @default(uuid()) @db.UniqueIdentifier
+  tripId         String    @db.UniqueIdentifier
+  category       String    @db.NVarChar(50)
+  plannedAmount  Decimal   @db.Decimal(10, 2)
+  alertThreshold Int?      @default(80)
+  createdAt      DateTime? @default(now())
+  Trips          Trips     @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tripId, category])
+}
+
+model PackingLists {
+  id           String         @id @default(uuid()) @db.UniqueIdentifier
+  tripId       String         @db.UniqueIdentifier
+  name         String?        @default("Main Packing List") @db.NVarChar(255)
+  createdAt    DateTime?      @default(now())
+  Trips        Trips          @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  PackingItems PackingItems[]
+
+  @@index([tripId])
+}
+
+model PackingItems {
+  id            String       @id @default(uuid()) @db.UniqueIdentifier
+  packingListId String       @db.UniqueIdentifier
+  itemName      String       @db.NVarChar(255)
+  category      String?      @db.NVarChar(50)
+  quantity      Int?         @default(1)
+  isPacked      Boolean?     @default(false)
+  isEssential   Boolean?     @default(false)
+  notes         String?      @db.NVarChar(Max)
+  itemOrder     Int?
+  createdAt     DateTime?    @default(now())
+  PackingLists  PackingLists @relation(fields: [packingListId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model TripDocuments {
+  id             String    @id @default(uuid()) @db.UniqueIdentifier
+  tripId         String    @db.UniqueIdentifier
+  documentType   String    @db.NVarChar(50)
+  title          String    @db.NVarChar(255)
+  filePath       String?   @db.NVarChar(500)
+  expiryDate     DateTime? @db.Date
+  documentNumber String?   @db.NVarChar(255)
+  notes          String?   @db.NVarChar(Max)
+  createdAt      DateTime? @default(now())
+  Trips          Trips     @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tripId])
+}
+
+model TripCompanions {
+  id                 String               @id @default(uuid()) @db.UniqueIdentifier
+  tripId             String               @db.UniqueIdentifier
+  userId             String?
+  email              String?              @db.NVarChar(255)
+  name               String               @db.NVarChar(255)
+  role               String?              @default("companion") @db.NVarChar(50)
+  status             String?              @default("invited") @db.NVarChar(50)
+  joinedAt           DateTime?
+  createdAt          DateTime?            @default(now())
+  Trips              Trips                @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User               User?                @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  TripSharedExpenses TripSharedExpenses[]
+
+  @@index([tripId])
+}
+
+model TripPhotos {
+  id              String          @id @default(uuid()) @db.UniqueIdentifier
+  tripId          String          @db.UniqueIdentifier
+  itineraryItemId String?         @db.UniqueIdentifier
+  filePath        String          @db.NVarChar(500)
+  thumbnailPath   String?         @db.NVarChar(500)
+  caption         String?         @db.NVarChar(Max)
+  location        String?         @db.NVarChar(255)
+  takenAt         DateTime?       @default(now())
+  uploadedAt      DateTime?       @default(now())
+  Trips           Trips           @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ItineraryItems  ItineraryItems? @relation(fields: [itineraryItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tripId])
+}
+
+model TripNotes {
+  id              String          @id @default(uuid()) @db.UniqueIdentifier
+  tripId          String          @db.UniqueIdentifier
+  itineraryItemId String?         @db.UniqueIdentifier
+  title           String?         @db.NVarChar(255)
+  content         String          @db.NVarChar(Max)
+  category        String?         @db.NVarChar(50)
+  createdAt       DateTime?       @default(now())
+  updatedAt       DateTime?       @default(now())
+  Trips           Trips           @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ItineraryItems  ItineraryItems? @relation(fields: [itineraryItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model TripTemplates {
+  id               String    @id @default(uuid()) @db.UniqueIdentifier
+  userId           String
+  title            String    @db.NVarChar(255)
+  description      String?   @db.NVarChar(Max)
+  destination      String?   @db.NVarChar(255)
+  duration         Int?
+  estimatedBudget  Decimal?  @db.Decimal(10, 2)
+  tripType         String?   @db.NVarChar(50)
+  templateData     String?   @db.NVarChar(Max)
+  isPublic         Boolean?  @default(false)
+  useCount         Int?      @default(0)
+  createdAt        DateTime? @default(now())
+  User             User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model TripSharedExpenses {
+  id             String         @id @default(uuid()) @db.UniqueIdentifier
+  expenseId      String         @db.UniqueIdentifier
+  companionId    String         @db.UniqueIdentifier
+  shareAmount    Decimal        @db.Decimal(10, 2)
+  isPaid         Boolean?       @default(false)
+  paidAt         DateTime?
+  createdAt      DateTime?      @default(now())
+  TripExpenses   TripExpenses   @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  TripCompanions TripCompanions @relation(fields: [companionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}

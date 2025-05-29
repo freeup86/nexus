@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Document API</title>
+</head>
+<body>
+    <h1>Test Document Summarizer API</h1>
+    
+    <h2>1. Test Route</h2>
+    <button onclick="testRoute()">Test Document Routes</button>
+    <pre id="test-result"></pre>
+    
+    <h2>2. Test Text Summarization</h2>
+    <textarea id="test-text" rows="5" cols="50">This is a test document. It contains some sample text that we want to summarize. The purpose is to test if the API is working correctly.</textarea><br>
+    <button onclick="testTextSummarization()">Test Text Summary</button>
+    <pre id="text-result"></pre>
+    
+    <script>
+        const API_URL = 'http://localhost:5001/api';
+        
+        // Get token from localStorage (you need to be logged in)
+        const token = localStorage.getItem('token');
+        
+        async function testRoute() {
+            try {
+                const response = await fetch(`${API_URL}/documents/test`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                document.getElementById('test-result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('test-result').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testTextSummarization() {
+            try {
+                const formData = new FormData();
+                formData.append('text', document.getElementById('test-text').value);
+                formData.append('summaryType', 'brief');
+                
+                const response = await fetch(`${API_URL}/documents/summarize`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                document.getElementById('text-result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('text-result').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        if (!token) {
+            alert('No auth token found. Please log in to the app first.');
+        }
+    </script>
+</body>
+</html>

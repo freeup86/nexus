@@ -1,0 +1,677 @@
+import { Router, Response } from 'express';
+import { PrismaClient } from '../generated/prisma';
+import { AuthRequest } from '../middleware/auth';
+import { body, param, query, validationResult } from 'express-validator';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs/promises';
+// import sharp from 'sharp'; // Will be used for image processing later
+// import crypto from 'crypto'; // Will be used for unique IDs later
+
+const router = Router();
+const prisma = new PrismaClient();
+
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: async (_req, _file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/travel');
+    await fs.mkdir(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (_req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, PDF, DOC, DOCX are allowed.'));
+    }
+  }
+});
+
+// Validation middleware
+const validateRequest = (req: AuthRequest, res: Response, next: any) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ errors: errors.array() });
+    return;
+  }
+  next();
+};
+
+// Helper function to validate GUID/UUID
+const isValidGuid = (value: string) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(value) || guidRegex.test(value);
+};
+
+// Create a new trip
+router.post('/trips',
+  [
+    body('title').notEmpty().trim(),
+    body('destination').notEmpty().trim(),
+    body('startDate').isISO8601(),
+    body('endDate').isISO8601(),
+    body('description').optional().trim(),
+    body('tripType').optional().isIn(['leisure', 'business', 'family', 'adventure', 'romantic']),
+    body('totalBudget').optional().isFloat({ min: 0 }),
+    body('currency').optional().isLength({ min: 3, max: 3 })
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { title, destination, startDate, endDate, description, tripType, totalBudget, currency } = req.body;
+
+      // Validate dates
+      if (new Date(endDate) < new Date(startDate)) {
+        res.status(400).json({ error: 'End date must be after start date' });
+        return;
+      }
+
+      const trip = await prisma.trips.create({
+        data: {
+          userId,
+          title,
+          destination,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          description,
+          tripType,
+          totalBudget,
+          currency: currency || 'USD',
+          status: 'planning'
+        },
+        include: {
+          User: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
+      });
+
+      res.status(201).json({ trip });
+    } catch (error) {
+      console.error('Create trip error:', error);
+      res.status(500).json({ error: 'Failed to create trip' });
+    }
+  }
+);
+
+// Get user's trips
+router.get('/trips',
+  [
+    query('status').optional().isIn(['planning', 'booked', 'ongoing', 'completed', 'cancelled']),
+    query('tripType').optional().isIn(['leisure', 'business', 'family', 'adventure', 'romantic']),
+    query('upcoming').optional().isBoolean()
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { status, tripType, upcoming } = req.query;
+      const where: any = { userId };
+
+      if (status) where.status = status;
+      if (tripType) where.tripType = tripType;
+      if (upcoming === 'true') {
+        where.startDate = { gte: new Date() };
+      }
+
+      const trips = await prisma.trips.findMany({
+        where,
+        include: {
+          _count: {
+            select: {
+              TripExpenses: true,
+              TripPhotos: true,
+              TripCompanions: true
+            }
+          }
+        },
+        orderBy: { startDate: 'asc' }
+      });
+
+      // Calculate actual spent for each trip
+      for (const trip of trips) {
+        const expenses = await prisma.tripExpenses.aggregate({
+          where: { tripId: trip.id },
+          _sum: { amount: true }
+        });
+        (trip as any).actualSpent = expenses._sum.amount || 0;
+      }
+
+      res.json({ trips });
+    } catch (error) {
+      console.error('Get trips error:', error);
+      res.status(500).json({ error: 'Failed to get trips' });
+    }
+  }
+);
+
+// Get trip details
+router.get('/trips/:id',
+  [param('id').custom(isValidGuid)],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const { id } = req.params;
+
+      const trip = await prisma.trips.findFirst({
+        where: { 
+          id,
+          OR: [
+            { userId },
+            { TripCompanions: { some: { userId, status: 'accepted' } } }
+          ]
+        },
+        include: {
+          User: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true
+            }
+          },
+          TripItineraries: {
+            include: {
+              ItineraryItems: {
+                orderBy: { itemOrder: 'asc' }
+              }
+            },
+            orderBy: { dayNumber: 'asc' }
+          },
+          TripExpenses: {
+            orderBy: { date: 'desc' }
+          },
+          TripBudgets: true,
+          PackingLists: {
+            include: {
+              PackingItems: {
+                orderBy: { itemOrder: 'asc' }
+              }
+            }
+          },
+          TripDocuments: true,
+          TripCompanions: {
+            include: {
+              User: {
+                select: {
+                  id: true,
+                  username: true,
+                  firstName: true,
+                  lastName: true,
+                  profilePicture: true
+                }
+              }
+            }
+          },
+          TripPhotos: {
+            orderBy: { takenAt: 'desc' }
+          },
+          TripNotes: {
+            orderBy: { createdAt: 'desc' }
+          }
+        }
+      });
+
+      if (!trip) {
+        res.status(404).json({ error: 'Trip not found' });
+        return;
+      }
+
+      // Calculate actual spent
+      const expenses = await prisma.tripExpenses.aggregate({
+        where: { tripId: id },
+        _sum: { amount: true }
+      });
+      (trip as any).actualSpent = expenses._sum.amount || 0;
+
+      res.json({ trip });
+    } catch (error) {
+      console.error('Get trip details error:', error);
+      res.status(500).json({ error: 'Failed to get trip details' });
+    }
+  }
+);
+
+// Update trip
+router.put('/trips/:id',
+  [
+    param('id').custom(isValidGuid),
+    body('title').optional().trim(),
+    body('description').optional().trim(),
+    body('status').optional().isIn(['planning', 'booked', 'ongoing', 'completed', 'cancelled']),
+    body('totalBudget').optional().isFloat({ min: 0 })
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Verify ownership
+      const trip = await prisma.trips.findFirst({
+        where: { id, userId }
+      });
+
+      if (!trip) {
+        res.status(404).json({ error: 'Trip not found' });
+        return;
+      }
+
+      const updatedTrip = await prisma.trips.update({
+        where: { id },
+        data: {
+          ...req.body,
+          updatedAt: new Date()
+        }
+      });
+
+      res.json({ trip: updatedTrip });
+    } catch (error) {
+      console.error('Update trip error:', error);
+      res.status(500).json({ error: 'Failed to update trip' });
+    }
+  }
+);
+
+// Create itinerary for a day
+router.post('/trips/:id/itinerary',
+  [
+    param('id').custom(isValidGuid),
+    body('dayNumber').isInt({ min: 1 }),
+    body('date').isISO8601(),
+    body('title').optional().trim(),
+    body('description').optional().trim()
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+      const { dayNumber, date, title, description } = req.body;
+
+      // Verify ownership
+      const trip = await prisma.trips.findFirst({
+        where: { id, userId }
+      });
+
+      if (!trip) {
+        res.status(404).json({ error: 'Trip not found' });
+        return;
+      }
+
+      const itinerary = await prisma.tripItineraries.create({
+        data: {
+          tripId: id,
+          dayNumber,
+          date: new Date(date),
+          title,
+          description
+        }
+      });
+
+      res.status(201).json({ itinerary });
+    } catch (error) {
+      console.error('Create itinerary error:', error);
+      res.status(500).json({ error: 'Failed to create itinerary' });
+    }
+  }
+);
+
+// Add itinerary item
+router.post('/itinerary/:id/items',
+  [
+    param('id').custom(isValidGuid),
+    body('title').notEmpty().trim(),
+    body('category').optional().isIn(['transport', 'accommodation', 'activity', 'meal', 'sightseeing']),
+    body('startTime').optional(),
+    body('endTime').optional(),
+    body('location').optional().trim(),
+    body('cost').optional().isFloat({ min: 0 })
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Verify ownership through trip
+      const itinerary = await prisma.tripItineraries.findFirst({
+        where: { id },
+        include: {
+          Trips: {
+            select: { userId: true }
+          }
+        }
+      });
+
+      if (!itinerary || itinerary.Trips.userId !== userId) {
+        res.status(404).json({ error: 'Itinerary not found' });
+        return;
+      }
+
+      // Get the next order number
+      const lastItem = await prisma.itineraryItems.findFirst({
+        where: { itineraryId: id },
+        orderBy: { itemOrder: 'desc' }
+      });
+
+      const item = await prisma.itineraryItems.create({
+        data: {
+          itineraryId: id,
+          ...req.body,
+          itemOrder: (lastItem?.itemOrder || 0) + 1
+        }
+      });
+
+      res.status(201).json({ item });
+    } catch (error) {
+      console.error('Add itinerary item error:', error);
+      res.status(500).json({ error: 'Failed to add itinerary item' });
+    }
+  }
+);
+
+// Add expense
+router.post('/trips/:id/expenses',
+  [
+    param('id').custom(isValidGuid),
+    body('date').isISO8601(),
+    body('category').isIn(['accommodation', 'transport', 'food', 'activities', 'shopping', 'other']),
+    body('description').notEmpty().trim(),
+    body('amount').isFloat({ min: 0 }),
+    body('paymentMethod').optional().isIn(['cash', 'credit_card', 'debit_card', 'digital_wallet'])
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Verify ownership or companion status
+      const trip = await prisma.trips.findFirst({
+        where: { 
+          id,
+          OR: [
+            { userId },
+            { TripCompanions: { some: { userId, status: 'accepted' } } }
+          ]
+        }
+      });
+
+      if (!trip) {
+        res.status(404).json({ error: 'Trip not found' });
+        return;
+      }
+
+      const expense = await prisma.tripExpenses.create({
+        data: {
+          tripId: id,
+          ...req.body,
+          date: new Date(req.body.date),
+          currency: trip.currency
+        }
+      });
+
+      res.status(201).json({ expense });
+    } catch (error) {
+      console.error('Add expense error:', error);
+      res.status(500).json({ error: 'Failed to add expense' });
+    }
+  }
+);
+
+// Create packing list
+router.post('/trips/:id/packing-lists',
+  [
+    param('id').custom(isValidGuid),
+    body('name').optional().trim(),
+    body('items').isArray(),
+    body('items.*.itemName').notEmpty().trim(),
+    body('items.*.category').optional().isIn(['clothing', 'toiletries', 'electronics', 'documents', 'medications', 'other']),
+    body('items.*.quantity').optional().isInt({ min: 1 }),
+    body('items.*.isEssential').optional().isBoolean()
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+      const { name, items } = req.body;
+
+      // Verify ownership
+      const trip = await prisma.trips.findFirst({
+        where: { id, userId }
+      });
+
+      if (!trip) {
+        res.status(404).json({ error: 'Trip not found' });
+        return;
+      }
+
+      // Create packing list
+      const packingList = await prisma.packingLists.create({
+        data: {
+          tripId: id,
+          name: name || 'Main Packing List'
+        }
+      });
+
+      // Add items
+      if (items && items.length > 0) {
+        await prisma.packingItems.createMany({
+          data: items.map((item: any, index: number) => ({
+            packingListId: packingList.id,
+            ...item,
+            itemOrder: index + 1
+          }))
+        });
+      }
+
+      const fullList = await prisma.packingLists.findUnique({
+        where: { id: packingList.id },
+        include: {
+          PackingItems: {
+            orderBy: { itemOrder: 'asc' }
+          }
+        }
+      });
+
+      res.status(201).json({ packingList: fullList });
+    } catch (error) {
+      console.error('Create packing list error:', error);
+      res.status(500).json({ error: 'Failed to create packing list' });
+    }
+  }
+);
+
+// Toggle packing item status
+router.patch('/packing-items/:id/toggle',
+  [param('id').custom(isValidGuid)],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Verify ownership through trip
+      const item = await prisma.packingItems.findFirst({
+        where: { id },
+        include: {
+          PackingLists: {
+            include: {
+              Trips: {
+                select: { userId: true }
+              }
+            }
+          }
+        }
+      });
+
+      if (!item || item.PackingLists.Trips.userId !== userId) {
+        res.status(404).json({ error: 'Packing item not found' });
+        return;
+      }
+
+      const updatedItem = await prisma.packingItems.update({
+        where: { id },
+        data: {
+          isPacked: !item.isPacked
+        }
+      });
+
+      res.json({ item: updatedItem });
+    } catch (error) {
+      console.error('Toggle packing item error:', error);
+      res.status(500).json({ error: 'Failed to toggle packing item' });
+    }
+  }
+);
+
+// Upload document
+router.post('/trips/:id/documents',
+  upload.single('document'),
+  [
+    param('id').custom(isValidGuid),
+    body('documentType').isIn(['passport', 'visa', 'ticket', 'booking', 'insurance', 'other']),
+    body('title').notEmpty().trim()
+  ],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+      const { documentType, title, expiryDate, documentNumber, notes } = req.body;
+
+      // Verify ownership
+      const trip = await prisma.trips.findFirst({
+        where: { id, userId }
+      });
+
+      if (!trip) {
+        res.status(404).json({ error: 'Trip not found' });
+        return;
+      }
+
+      const document = await prisma.tripDocuments.create({
+        data: {
+          tripId: id,
+          documentType,
+          title,
+          filePath: req.file?.filename,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          documentNumber,
+          notes
+        }
+      });
+
+      res.status(201).json({ document });
+    } catch (error) {
+      console.error('Upload document error:', error);
+      res.status(500).json({ error: 'Failed to upload document' });
+    }
+  }
+);
+
+// Delete trip
+router.delete('/trips/:id',
+  [param('id').custom(isValidGuid)],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Verify ownership
+      const trip = await prisma.trips.findFirst({
+        where: { id, userId }
+      });
+
+      if (!trip) {
+        res.status(404).json({ error: 'Trip not found' });
+        return;
+      }
+
+      await prisma.trips.delete({
+        where: { id }
+      });
+
+      res.json({ message: 'Trip deleted successfully' });
+    } catch (error) {
+      console.error('Delete trip error:', error);
+      res.status(500).json({ error: 'Failed to delete trip' });
+    }
+  }
+);
+
+export default router;
