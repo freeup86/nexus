@@ -290,8 +290,8 @@ router.delete('/tweets/:id', async (req: AuthRequest, res: Response): Promise<vo
   }
 });
 
-// Publish tweet
-router.post('/tweets/:id/publish', async (req: AuthRequest, res: Response): Promise<void> => {
+// Publish tweet handler function
+const publishTweetHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
@@ -364,7 +364,11 @@ router.post('/tweets/:id/publish', async (req: AuthRequest, res: Response): Prom
     
     res.status(error.code || 500).json({ error: errorMessage });
   }
-});
+};
+
+// Publish tweet routes (support both POST and PUT)
+router.post('/tweets/:id/publish', publishTweetHandler);
+router.put('/tweets/:id/publish', publishTweetHandler);
 
 // Delete tweet (alias for frontend compatibility)
 router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {

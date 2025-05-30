@@ -54,12 +54,15 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
+    console.log('CORS origin check:', origin);
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('CORS origin allowed:', origin);
       callback(null, true);
     } else {
+      console.log('CORS origin blocked:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -97,6 +100,16 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Manual OPTIONS handler for all routes
+app.options('*', (req, res) => {
+  console.log('OPTIONS request for:', req.path, 'from origin:', req.get('Origin'));
+  res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
 });
 
 // API Routes
