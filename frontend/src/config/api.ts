@@ -1,8 +1,7 @@
-// API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-
-// Axios default configuration
 import axios from 'axios';
+
+// API Configuration
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 // Set default base URL
 axios.defaults.baseURL = API_BASE_URL;
