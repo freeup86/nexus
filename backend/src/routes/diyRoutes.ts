@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import { body, param, query, validationResult } from 'express-validator';
 import multer from 'multer';
@@ -144,7 +144,7 @@ router.get('/projects/:id',
       const userId = req.user?.userId;
       const { id } = req.params;
 
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { 
           id,
           OR: [
@@ -161,19 +161,11 @@ router.get('/projects/:id',
               lastName: true
             }
           },
-          ProjectSupplies: true,
-          ProjectPhotos: {
-            orderBy: { takenAt: 'desc' }
+          supplies: true,
+          images: {
+            orderBy: { uploadedAt: 'desc' }
           },
-          ProjectMilestones: {
-            orderBy: { stepOrder: 'asc' }
-          },
-          ProjectTools: true,
-          ProjectIssues: {
-            include: {
-              ProjectPhotos: true
-            }
-          }
+          issues: true
         }
       });
 
@@ -186,7 +178,7 @@ router.get('/projects/:id',
       const actualProgress = await recalculateProjectProgress(project.id);
       if (project.progressPercentage !== actualProgress) {
         // Update the database with correct progress
-        await prisma.dIYProjects.update({
+        await prisma.dIYProject.update({
           where: { id: project.id },
           data: {
             progressPercentage: actualProgress,
@@ -253,7 +245,7 @@ router.put('/projects/:id',
         const newId = crypto.randomUUID();
         
         // Update the project with a proper UUID
-        await prisma.dIYProjects.update({
+        await prisma.dIYProject.update({
           where: { id },
           data: { id: newId }
         });
@@ -262,7 +254,7 @@ router.put('/projects/:id',
       }
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId }
       });
 
@@ -272,7 +264,7 @@ router.put('/projects/:id',
       }
 
       // Update project
-      const updatedProject = await prisma.dIYProjects.update({
+      const updatedProject = await prisma.dIYProject.update({
         where: { id },
         data: {
           ...req.body,
@@ -364,12 +356,11 @@ router.post('/projects/:id/analyze',
       const { id } = req.params;
 
       // Get project details
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId },
         include: {
-          ProjectSupplies: true,
-          ProjectMilestones: true,
-          ProjectTools: true
+          supplies: true,
+          issues: true
         }
       });
 
@@ -382,7 +373,7 @@ router.post('/projects/:id/analyze',
       const projectPlan = await generateAIProjectPlan(project);
 
       // Update project with AI plan
-      await prisma.dIYProjects.update({
+      await prisma.dIYProject.update({
         where: { id },
         data: {
           aiProjectPlan: JSON.stringify(projectPlan)
@@ -420,7 +411,7 @@ router.post('/projects/:id/photos',
       const { photoType, stepNumber, caption, voiceNote } = req.body;
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId }
       });
 
@@ -531,7 +522,7 @@ router.post('/projects/:id/supplies',
       const { supplies } = req.body;
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId }
       });
 
@@ -579,7 +570,7 @@ router.post('/projects/:id/progress',
       const { milestoneId, progressPercentage } = req.body;
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId }
       });
 
@@ -607,7 +598,7 @@ router.post('/projects/:id/progress',
         const totalCount = milestones.length;
         const calculatedProgress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-        await prisma.dIYProjects.update({
+        await prisma.dIYProject.update({
           where: { id },
           data: {
             progressPercentage: calculatedProgress,
@@ -617,7 +608,7 @@ router.post('/projects/:id/progress',
         });
       } else if (progressPercentage !== undefined) {
         // Direct progress update
-        await prisma.dIYProjects.update({
+        await prisma.dIYProject.update({
           where: { id },
           data: {
             progressPercentage,
@@ -656,7 +647,7 @@ router.post('/community/share',
       const { projectId, title, description, tags, featuredPhotoId } = req.body;
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id: projectId, userId }
       });
 
@@ -833,7 +824,7 @@ router.post('/community/help',
       const { projectId, title, description, requestType, photoId } = req.body;
 
       // Verify project ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id: projectId, userId }
       });
 
@@ -886,7 +877,7 @@ router.delete('/projects/:id',
       const { id } = req.params;
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId },
         include: {
           ProjectPhotos: true
@@ -1035,7 +1026,7 @@ router.post('/projects/:id/issues',
       const { issueType, description, severity, photoId } = req.body;
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId }
       });
 
@@ -1199,7 +1190,7 @@ router.post('/projects/:id/milestones',
         const newId = crypto.randomUUID();
         
         // Update the project with a proper UUID
-        await prisma.dIYProjects.update({
+        await prisma.dIYProject.update({
           where: { id },
           data: { id: newId }
         });
@@ -1208,7 +1199,7 @@ router.post('/projects/:id/milestones',
       }
 
       // Verify ownership
-      const project = await prisma.dIYProjects.findFirst({
+      const project = await prisma.dIYProject.findFirst({
         where: { id, userId }
       });
 

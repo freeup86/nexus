@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import Anthropic from '@anthropic-ai/sdk';
 import pdfParse from 'pdf-parse';

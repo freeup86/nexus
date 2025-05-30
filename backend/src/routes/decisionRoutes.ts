@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import { body, param, validationResult } from 'express-validator';
 import Anthropic from '@anthropic-ai/sdk';
