@@ -435,6 +435,7 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
     res.json({
       extractions: extractions.map(ext => ({
         ...ext,
+        status: ext.processingTime ? 'completed' : 'processing',
         metadata: ext.metadata ? JSON.parse(ext.metadata) : null
       })),
       total,
@@ -465,6 +466,7 @@ router.get('/extraction/:id', async (req: AuthRequest, res: Response): Promise<v
     res.json({
       extraction: {
         ...extraction,
+        status: extraction.processingTime ? 'completed' : 'processing',
         metadata: extraction.metadata ? JSON.parse(extraction.metadata) : null
       }
     });
@@ -503,6 +505,43 @@ router.delete('/extraction/:id', async (req: AuthRequest, res: Response): Promis
   } catch (error) {
     console.error('Delete extraction error:', error);
     res.status(500).json({ error: 'Failed to delete extraction' });
+  }
+});
+
+// Fix stuck extractions (admin/debug endpoint)
+router.post('/fix-stuck', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+
+    // Find extractions that have text but no processing time
+    const stuckExtractions = await prisma.textExtraction.findMany({
+      where: {
+        userId,
+        extractedText: { not: '' },
+        OR: [
+          { processingTime: null },
+          { processingTime: 0 }
+        ]
+      }
+    });
+
+    // Update them with a default processing time
+    const updatePromises = stuckExtractions.map(extraction =>
+      prisma.textExtraction.update({
+        where: { id: extraction.id },
+        data: { processingTime: 1000 } // Default 1 second
+      })
+    );
+
+    await Promise.all(updatePromises);
+
+    res.json({
+      message: `Fixed ${stuckExtractions.length} stuck extractions`,
+      fixed: stuckExtractions.length
+    });
+  } catch (error) {
+    console.error('Fix stuck extractions error:', error);
+    res.status(500).json({ error: 'Failed to fix stuck extractions' });
   }
 });
 
