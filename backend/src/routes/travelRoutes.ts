@@ -48,6 +48,8 @@ const upload = multer({
 const validateRequest = (req: AuthRequest, res: Response, next: any) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('Validation errors:', errors.array());
+    console.log('Request body that failed validation:', req.body);
     res.status(400).json({ errors: errors.array() });
     return;
   }
@@ -122,20 +124,12 @@ router.get('/trips/:id',
       const trip = await prisma.trip.findFirst({
         where: { id, userId },
         include: {
-          TripExpenses: true,
-          TripPhotos: true,
-          TripCompanions: true,
-          TripDocuments: true,
-          TripItineraries: {
-            include: {
-              ItineraryItems: true
-            }
-          },
-          PackingLists: {
-            include: {
-              PackingItems: true
-            }
-          }
+          expenses: true,
+          photos: true,
+          companions: true,
+          documents: true,
+          itineraryItems: true,
+          packingItems: true
         }
       });
 
@@ -147,6 +141,10 @@ router.get('/trips/:id',
       res.json({ trip });
     } catch (error) {
       console.error('Get trip error:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       res.status(500).json({ error: 'Failed to fetch trip' });
     }
   }
@@ -157,11 +155,23 @@ router.post('/trips',
   [
     body('title').optional().trim(),
     body('destination').notEmpty().trim(),
-    body('startDate').isISO8601(),
-    body('endDate').isISO8601(),
+    body('startDate').custom((value) => {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid start date');
+      }
+      return true;
+    }),
+    body('endDate').custom((value) => {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid end date');
+      }
+      return true;
+    }),
     body('description').optional().trim(),
     body('tripType').optional().isIn(['leisure', 'business', 'family', 'adventure', 'romantic']),
-    body('totalBudget').optional().isFloat({ min: 0 }),
+    body('totalBudget').optional({ nullable: true }).isFloat({ min: 0 }),
     body('currency').optional().isLength({ min: 3, max: 3 })
   ],
   validateRequest,
@@ -328,35 +338,34 @@ router.get('/trips/:tripId/itinerary',
         return;
       }
 
-      const itinerary = await prisma.tripItineraries.findMany({
+      const itineraryItems = await prisma.itineraryItem.findMany({
         where: { tripId },
-        include: {
-          ItineraryItems: {
-            orderBy: { itemOrder: 'asc' }
-          }
-        },
-        orderBy: { dayNumber: 'asc' }
+        orderBy: { startTime: 'asc' }
       });
 
-      res.json({ itinerary });
+      res.json({ itinerary: itineraryItems });
     } catch (error) {
       console.error('Get itinerary error:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       res.status(500).json({ error: 'Failed to fetch itinerary' });
     }
   }
 );
 
 // Add itinerary item
-router.post('/trips/:tripId/itinerary/:dayId/items',
+router.post('/trips/:tripId/itinerary',
   [
     param('tripId').custom(isValidGuid),
-    param('dayId').custom(isValidGuid),
-    body('title').notEmpty().trim(),
-    body('startTime').optional(),
-    body('endTime').optional(),
-    body('description').optional().trim(),
+    body('activity').notEmpty().trim(),
+    body('date').isISO8601(),
+    body('time').optional().trim(),
     body('location').optional().trim(),
-    body('category').optional().isIn(['transport', 'accommodation', 'activity', 'meal', 'sightseeing'])
+    body('duration').optional().isInt({ min: 0 }),
+    body('cost').optional().isFloat({ min: 0 }),
+    body('notes').optional().trim()
   ],
   validateRequest,
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -374,10 +383,18 @@ router.post('/trips/:tripId/itinerary/:dayId/items',
         return;
       }
 
-      const item = await prisma.itineraryItems.create({
+      const { activity, date, time, location, duration, cost, notes } = req.body;
+      
+      const item = await prisma.itineraryItem.create({
         data: {
-          itineraryId: dayId,
-          ...req.body
+          tripId,
+          activity,
+          date: new Date(date),
+          time: time || null,
+          location: location || null,
+          duration: duration || null,
+          cost: cost || null,
+          notes: notes || null
         }
       });
 
@@ -445,7 +462,7 @@ router.get('/trips/:tripId/expenses',
         return;
       }
 
-      const expenses = await prisma.tripExpenses.findMany({
+      const expenses = await prisma.tripExpense.findMany({
         where: { tripId },
         orderBy: { date: 'desc' }
       });
@@ -484,7 +501,7 @@ router.post('/trips/:tripId/expenses',
         return;
       }
 
-      const expense = await prisma.tripExpenses.create({
+      const expense = await prisma.tripExpense.create({
         data: {
           tripId,
           ...req.body,
@@ -493,7 +510,7 @@ router.post('/trips/:tripId/expenses',
       });
 
       // Update trip's actual spent amount
-      const totalSpent = await prisma.tripExpenses.aggregate({
+      const totalSpent = await prisma.tripExpense.aggregate({
         where: { tripId },
         _sum: { amount: true }
       });
@@ -536,7 +553,7 @@ router.put('/trips/:tripId/expenses/:expenseId',
         return;
       }
 
-      const expense = await prisma.tripExpenses.update({
+      const expense = await prisma.tripExpense.update({
         where: { id: expenseId },
         data: {
           ...req.body,
@@ -545,7 +562,7 @@ router.put('/trips/:tripId/expenses/:expenseId',
       });
 
       // Update trip's actual spent amount
-      const totalSpent = await prisma.tripExpenses.aggregate({
+      const totalSpent = await prisma.tripExpense.aggregate({
         where: { tripId },
         _sum: { amount: true }
       });
@@ -585,12 +602,12 @@ router.delete('/trips/:tripId/expenses/:expenseId',
         return;
       }
 
-      await prisma.tripExpenses.delete({
+      await prisma.tripExpense.delete({
         where: { id: expenseId }
       });
 
       // Update trip's actual spent amount
-      const totalSpent = await prisma.tripExpenses.aggregate({
+      const totalSpent = await prisma.tripExpense.aggregate({
         where: { tripId },
         _sum: { amount: true }
       });
@@ -629,26 +646,13 @@ router.get('/trips/:tripId/packing',
         return;
       }
 
-      // Get or create packing list
-      let packingList = await prisma.packingLists.findFirst({
+      // Get packing items for the trip
+      const packingItems = await prisma.packingItem.findMany({
         where: { tripId },
-        include: {
-          PackingItems: {
-            orderBy: { itemOrder: 'asc' }
-          }
-        }
+        orderBy: { createdAt: 'asc' }
       });
 
-      if (!packingList) {
-        packingList = await prisma.packingLists.create({
-          data: { tripId },
-          include: {
-            PackingItems: true
-          }
-        });
-      }
-
-      res.json({ items: packingList.PackingItems });
+      res.json({ items: packingItems });
     } catch (error) {
       console.error('Get packing list error:', error);
       res.status(500).json({ error: 'Failed to fetch packing list' });
@@ -682,12 +686,12 @@ router.post('/trips/:tripId/packing',
       }
 
       // Get or create packing list
-      let packingList = await prisma.packingLists.findFirst({
+      let packingList = await prisma.packingItem.findFirst({
         where: { tripId }
       });
 
       if (!packingList) {
-        packingList = await prisma.packingLists.create({
+        packingList = await prisma.packingItem.create({
           data: { tripId }
         });
       }
@@ -799,7 +803,7 @@ router.get('/trips/:tripId/documents',
         return;
       }
 
-      const documents = await prisma.tripDocuments.findMany({
+      const documents = await prisma.tripDocument.findMany({
         where: { tripId },
         orderBy: { createdAt: 'desc' }
       });
@@ -841,7 +845,7 @@ router.post('/trips/:tripId/documents',
         return;
       }
 
-      const document = await prisma.tripDocuments.create({
+      const document = await prisma.tripDocument.create({
         data: {
           tripId,
           filePath: req.file.path,
@@ -891,7 +895,7 @@ router.put('/trips/:tripId/documents/:documentId',
         updateData.filePath = req.file.path;
       }
 
-      const document = await prisma.tripDocuments.update({
+      const document = await prisma.tripDocument.update({
         where: { id: documentId },
         data: updateData
       });
@@ -926,7 +930,7 @@ router.get('/trips/:tripId/documents/:documentId/view',
         return;
       }
 
-      const document = await prisma.tripDocuments.findFirst({
+      const document = await prisma.tripDocument.findFirst({
         where: { id: documentId, tripId }
       });
 
@@ -965,7 +969,7 @@ router.delete('/trips/:tripId/documents/:documentId',
         return;
       }
 
-      const document = await prisma.tripDocuments.findFirst({
+      const document = await prisma.tripDocument.findFirst({
         where: { id: documentId, tripId }
       });
 
@@ -977,7 +981,7 @@ router.delete('/trips/:tripId/documents/:documentId',
         }
       }
 
-      await prisma.tripDocuments.delete({
+      await prisma.tripDocument.delete({
         where: { id: documentId }
       });
 
@@ -1010,7 +1014,7 @@ router.get('/trips/:tripId/photos',
         return;
       }
 
-      const photos = await prisma.tripPhotos.findMany({
+      const photos = await prisma.tripPhoto.findMany({
         where: { tripId },
         orderBy: { takenAt: 'desc' }
       });
@@ -1051,7 +1055,7 @@ router.post('/trips/:tripId/photos',
 
       const photos = await Promise.all(
         files.map(file => 
-          prisma.tripPhotos.create({
+          prisma.tripPhoto.create({
             data: {
               tripId,
               filePath: file.path,
@@ -1095,7 +1099,7 @@ router.put('/trips/:tripId/photos/:photoId',
         return;
       }
 
-      const photo = await prisma.tripPhotos.update({
+      const photo = await prisma.tripPhoto.update({
         where: { id: photoId },
         data: req.body
       });
@@ -1130,7 +1134,7 @@ router.get('/trips/:tripId/photos/:photoId/view',
         return;
       }
 
-      const photo = await prisma.tripPhotos.findFirst({
+      const photo = await prisma.tripPhoto.findFirst({
         where: { id: photoId, tripId }
       });
 
@@ -1169,7 +1173,7 @@ router.get('/trips/:tripId/photos/:photoId/thumbnail',
         return;
       }
 
-      const photo = await prisma.tripPhotos.findFirst({
+      const photo = await prisma.tripPhoto.findFirst({
         where: { id: photoId, tripId }
       });
 
@@ -1209,7 +1213,7 @@ router.delete('/trips/:tripId/photos/:photoId',
         return;
       }
 
-      const photo = await prisma.tripPhotos.findFirst({
+      const photo = await prisma.tripPhoto.findFirst({
         where: { id: photoId, tripId }
       });
 
@@ -1221,7 +1225,7 @@ router.delete('/trips/:tripId/photos/:photoId',
         }
       }
 
-      await prisma.tripPhotos.delete({
+      await prisma.tripPhoto.delete({
         where: { id: photoId }
       });
 
@@ -1254,7 +1258,7 @@ router.get('/trips/:tripId/companions',
         return;
       }
 
-      const companions = await prisma.tripCompanions.findMany({
+      const companions = await prisma.tripCompanion.findMany({
         where: { tripId },
         orderBy: { createdAt: 'desc' }
       });
@@ -1291,7 +1295,7 @@ router.post('/trips/:tripId/companions',
         return;
       }
 
-      const companion = await prisma.tripCompanions.create({
+      const companion = await prisma.tripCompanion.create({
         data: {
           tripId,
           ...req.body,
@@ -1332,7 +1336,7 @@ router.put('/trips/:tripId/companions/:companionId',
         return;
       }
 
-      const companion = await prisma.tripCompanions.update({
+      const companion = await prisma.tripCompanion.update({
         where: { id: companionId },
         data: req.body
       });
@@ -1374,7 +1378,7 @@ router.put('/trips/:tripId/companions/:companionId/status',
         updateData.joinedAt = new Date();
       }
 
-      const companion = await prisma.tripCompanions.update({
+      const companion = await prisma.tripCompanion.update({
         where: { id: companionId },
         data: updateData
       });
@@ -1409,7 +1413,7 @@ router.delete('/trips/:tripId/companions/:companionId',
         return;
       }
 
-      await prisma.tripCompanions.delete({
+      await prisma.tripCompanion.delete({
         where: { id: companionId }
       });
 
