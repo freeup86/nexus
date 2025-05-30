@@ -378,4 +378,57 @@ router.delete('/api-keys/:id', async (req: AuthRequest, res: Response): Promise<
   }
 });
 
+// Get user settings
+router.get('/settings', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        profilePicture: true,
+        role: true,
+        emailVerified: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Get API keys count
+    const apiKeysCount = await prisma.apiKey.count({
+      where: { userId, isActive: true }
+    });
+
+    // Basic settings response
+    const settings = {
+      profile: user,
+      preferences: {
+        theme: 'light', // Default theme
+        notifications: true,
+        language: 'en'
+      },
+      apiKeys: {
+        count: apiKeysCount,
+        hasOpenAI: false,
+        hasAnthropicAI: false
+      }
+    };
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Get settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
 export default router;

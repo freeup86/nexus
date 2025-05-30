@@ -27,8 +27,7 @@ const validateRequest = (req: AuthRequest, res: Response, next: Function) => {
 router.post('/create',
   [
     body('title').notEmpty().trim().isLength({ max: 255 }),
-    body('description').optional().trim(),
-    body('decisionType').optional().isIn(['business', 'personal', 'investment', 'career', 'other'])
+    body('description').optional().trim()
   ],
   validateRequest,
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -39,18 +38,15 @@ router.post('/create',
         return;
       }
 
-      const { title, description, decisionType } = req.body;
+      const { title, description } = req.body;
 
       const decision = await prisma.decision.create({
         data: {
           userId,
           title,
           description,
-          decisionType: decisionType || 'other'
-        },
-        include: {
-          criteria: true,
-          options: true
+          options: [],
+          criteria: []
         }
       });
 
@@ -349,16 +345,7 @@ router.get('/user/:userId',
 
       const decisions = await prisma.decision.findMany({
         where: { userId },
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: {
-            select: {
-              criteria: true,
-              options: true,
-              analyses: true
-            }
-          }
-        }
+        orderBy: { createdAt: 'desc' }
       });
 
       res.json({ decisions });

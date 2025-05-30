@@ -84,14 +84,14 @@ router.get('/trips', async (req: AuthRequest, res: Response): Promise<void> => {
       where.startDate = { gte: new Date() };
     }
 
-    const trips = await prisma.trips.findMany({
+    const trips = await prisma.trip.findMany({
       where,
       include: {
         _count: {
           select: {
-            TripExpenses: true,
-            TripPhotos: true,
-            TripCompanions: true
+            expenses: true,
+            photos: true,
+            companions: true
           }
         }
       },

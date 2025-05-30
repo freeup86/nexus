@@ -14,14 +14,8 @@ const prisma = new PrismaClient();
 
 // Helper function to recalculate project progress based on milestones
 async function recalculateProjectProgress(projectId: string): Promise<number> {
-  const milestones = await prisma.projectMilestones.findMany({
-    where: { projectId }
-  });
-  
-  if (milestones.length === 0) return 0;
-  
-  const completedCount = milestones.filter((m: any) => m.status === 'completed').length;
-  return Math.round((completedCount / milestones.length) * 100);
+  // Milestone functionality not implemented in current schema
+  return 0;
 }
 
 // Initialize Anthropic Claude
@@ -74,12 +68,12 @@ router.post('/projects/create',
   [
     body('title').notEmpty().trim(),
     body('description').optional().trim(),
-    body('projectType').optional().trim(),
-    body('difficultyLevel').optional().isIn(['beginner', 'intermediate', 'advanced']),
-    body('estimatedDuration').custom((value) => {
+    body('category').optional().trim(),
+    body('difficulty').optional().isIn(['beginner', 'intermediate', 'advanced']),
+    body('estimatedTime').custom((value) => {
       if (value === null || value === undefined || value === '') return true;
       if (!Number.isInteger(Number(value)) || Number(value) < 1) {
-        throw new Error('estimatedDuration must be a positive integer or null');
+        throw new Error('estimatedTime must be a positive integer or null');
       }
       return true;
     }),
@@ -100,22 +94,21 @@ router.post('/projects/create',
         return;
       }
       
-      const { title, description, projectType, difficultyLevel, estimatedDuration, estimatedCost } = req.body;
+      const { title, description, category, difficulty, estimatedTime, estimatedCost } = req.body;
 
       // Create the project
-      const project = await prisma.dIYProjects.create({
+      const project = await prisma.dIYProject.create({
         data: {
           userId,
           title,
           description,
-          projectType,
-          difficultyLevel,
-          estimatedDuration,
-          estimatedCost,
-          status: 'planning'
+          category: category || 'general',
+          difficulty: difficulty || 'beginner',
+          estimatedTime,
+          estimatedCost
         },
         include: {
-          User: {
+          user: {
             select: {
               id: true,
               username: true,
@@ -309,25 +302,21 @@ router.get('/projects/user/:userId',
         ? { userId }
         : { 
             userId,
-            CommunityShares: { some: { isPublic: true } }
+            isPublic: true
           };
 
-      let projects = await prisma.dIYProjects.findMany({
+      let projects = await prisma.dIYProject.findMany({
         where: whereClause,
         include: {
-          ProjectPhotos: {
+          images: {
             take: 1,
-            orderBy: { takenAt: 'desc' }
-          },
-          ProjectMilestones: {
-            orderBy: { stepOrder: 'asc' }
+            orderBy: { uploadedAt: 'desc' }
           },
           _count: {
             select: {
-              ProjectSupplies: true,
-              ProjectPhotos: true,
-              ProjectMilestones: true,
-              ProjectIssues: true
+              supplies: true,
+              images: true,
+              issues: true
             }
           }
         },
@@ -341,7 +330,7 @@ router.get('/projects/user/:userId',
         
         for (const project of projectsToFix) {
           const newId = crypto.randomUUID();
-          await prisma.dIYProjects.update({
+          await prisma.dIYProject.update({
             where: { id: project.id },
             data: { id: newId }
           });
@@ -350,23 +339,7 @@ router.get('/projects/user/:userId',
         }
       }
 
-      // Recalculate progress for all projects based on milestones
-      for (const project of projects) {
-        const actualProgress = await recalculateProjectProgress(project.id);
-        if (project.progressPercentage !== actualProgress) {
-          // Update the database with correct progress
-          await prisma.dIYProjects.update({
-            where: { id: project.id },
-            data: {
-              progressPercentage: actualProgress,
-              status: actualProgress === 100 ? 'completed' : 
-                     actualProgress > 0 ? 'active' : 
-                     project.status === 'completed' ? 'active' : project.status
-            }
-          });
-          project.progressPercentage = actualProgress;
-        }
-      }
+      // Note: Progress calculation removed since milestones don't exist in current schema
 
       res.json({ projects });
     } catch (error) {
