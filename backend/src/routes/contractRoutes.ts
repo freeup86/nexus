@@ -216,12 +216,12 @@ router.post('/analyze', upload.single('contract'), async (req: AuthRequest, res)
     const contract = await prisma.contract.create({
       data: {
         userId,
-        fileName: req.file.originalname,
-        fileType: req.file.mimetype,
+        filename: req.file.originalname,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
         fileSize: req.file.size,
         filePath: req.file.path,
-        originalText: extractedText,
-        status: 'PROCESSING'
+        status: 'pending'
       }
     });
 
@@ -230,32 +230,29 @@ router.post('/analyze', upload.single('contract'), async (req: AuthRequest, res)
       const analysis = await analyzeContract(extractedText);
       const processingTime = Date.now() - startTime;
 
-      // Create analysis record
-      await prisma.contractAnalysis.create({
-        data: {
-          contractId: contract.id,
-          summary: analysis.summary,
-          keyTerms: JSON.stringify(analysis.keyTerms),
-          risks: JSON.stringify(analysis.risks),
-          obligations: JSON.stringify(analysis.obligations),
-          importantDates: JSON.stringify(analysis.importantDates),
-          plainEnglish: analysis.plainEnglish,
-          aiModel: 'claude-3-haiku-20240307',
-          processingTime
-        }
-      });
-
-      // Update contract status
+      // Update contract with analysis
       await prisma.contract.update({
         where: { id: contract.id },
-        data: { status: 'COMPLETED' }
+        data: {
+          status: 'completed',
+          summary: analysis.summary,
+          keyTerms: analysis.keyTerms,
+          risks: analysis.risks,
+          obligations: analysis.obligations,
+          aiAnalysis: {
+            plainEnglish: analysis.plainEnglish,
+            importantDates: analysis.importantDates,
+            aiModel: 'claude-3-haiku-20240307',
+            processingTime
+          }
+        }
       });
 
       res.json({
         contract: {
           id: contract.id,
-          fileName: contract.fileName,
-          fileType: contract.fileType,
+          fileName: contract.filename,
+          fileType: contract.mimeType,
           fileSize: contract.fileSize,
           createdAt: contract.createdAt
         },
@@ -298,17 +295,14 @@ router.get('/history', async (req: AuthRequest, res): Promise<void> => {
       skip: Number(offset),
       select: {
         id: true,
-        fileName: true,
-        fileType: true,
+        filename: true,
+        originalName: true,
+        mimeType: true,
         fileSize: true,
         status: true,
         createdAt: true,
-        analysis: {
-          select: {
-            summary: true,
-            processingTime: true
-          }
-        }
+        summary: true,
+        aiAnalysis: true
       }
     });
 
@@ -333,8 +327,7 @@ router.get('/contract/:id', async (req: AuthRequest, res): Promise<void> => {
     const userId = req.user?.userId;
 
     const contract = await prisma.contract.findFirst({
-      where: { id, userId },
-      include: { analysis: true }
+      where: { id, userId }
     });
 
     if (!contract) {
@@ -342,7 +335,7 @@ router.get('/contract/:id', async (req: AuthRequest, res): Promise<void> => {
       return;
     }
 
-    if (!contract.analysis) {
+    if (!contract.aiAnalysis) {
       res.status(404).json({ error: 'Analysis not found' });
       return;
     }
@@ -350,21 +343,21 @@ router.get('/contract/:id', async (req: AuthRequest, res): Promise<void> => {
     res.json({
       contract: {
         id: contract.id,
-        fileName: contract.fileName,
-        fileType: contract.fileType,
+        fileName: contract.filename,
+        fileType: contract.mimeType,
         fileSize: contract.fileSize,
         createdAt: contract.createdAt
       },
       analysis: {
-        summary: contract.analysis.summary,
-        keyTerms: JSON.parse(contract.analysis.keyTerms),
-        risks: JSON.parse(contract.analysis.risks),
-        obligations: JSON.parse(contract.analysis.obligations),
-        importantDates: JSON.parse(contract.analysis.importantDates),
-        plainEnglish: contract.analysis.plainEnglish,
-        aiModel: contract.analysis.aiModel,
-        processingTime: contract.analysis.processingTime,
-        createdAt: contract.analysis.createdAt
+        summary: contract.summary || '',
+        keyTerms: contract.keyTerms ? JSON.parse(contract.keyTerms) : [],
+        risks: contract.risks ? JSON.parse(contract.risks) : [],
+        obligations: contract.obligations ? JSON.parse(contract.obligations) : [],
+        importantDates: contract.dates ? JSON.parse(contract.dates) : [],
+        plainEnglish: contract.summary || '',
+        aiModel: 'gpt-4',
+        processingTime: 0,
+        createdAt: contract.updatedAt
       }
     });
   } catch (error) {
@@ -388,7 +381,7 @@ router.get('/contract/:id/download', async (req: AuthRequest, res): Promise<void
       return;
     }
 
-    res.download(contract.filePath, contract.fileName);
+    res.download(contract.filePath, contract.filename);
   } catch (error) {
     console.error('Download contract error:', error);
     res.status(500).json({ error: 'Failed to download contract' });

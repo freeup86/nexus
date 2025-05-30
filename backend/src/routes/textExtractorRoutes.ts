@@ -319,13 +319,13 @@ router.post('/extract', upload.single('file'), async (req: AuthRequest, res: Res
     const extraction = await prisma.textExtraction.create({
       data: {
         userId,
-        fileName: req.file.originalname,
-        fileType: req.file.mimetype,
+        filename: req.file.originalname,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
         fileSize: req.file.size,
         filePath: req.file.path,
         extractedText: '',
-        processingTime: 0,
-        status: 'PROCESSING'
+        processingTime: 0
       }
     });
 
@@ -355,7 +355,6 @@ router.post('/extract', upload.single('file'), async (req: AuthRequest, res: Res
         data: {
           extractedText,
           processingTime,
-          status: 'COMPLETED',
           metadata: JSON.stringify({
             wordCount: extractedText.split(/\s+/).length,
             characterCount: extractedText.length,
@@ -371,14 +370,13 @@ router.post('/extract', upload.single('file'), async (req: AuthRequest, res: Res
       res.json({
         extraction: {
           id: updatedExtraction.id,
-          fileName: updatedExtraction.fileName,
-          fileType: updatedExtraction.fileType,
+          fileName: updatedExtraction.filename,
+          fileType: updatedExtraction.mimeType,
           fileSize: updatedExtraction.fileSize,
           extractedText: updatedExtraction.extractedText,
           processingTime: updatedExtraction.processingTime,
           metadata: JSON.parse(updatedExtraction.metadata || '{}'),
-          createdAt: updatedExtraction.createdAt,
-          status: updatedExtraction.status
+          createdAt: updatedExtraction.createdAt
         }
       });
     } catch (error) {
@@ -386,8 +384,9 @@ router.post('/extract', upload.single('file'), async (req: AuthRequest, res: Res
       await prisma.textExtraction.update({
         where: { id: extraction.id },
         data: {
-          status: 'FAILED',
-          error: error instanceof Error ? error.message : 'Unknown error',
+          metadata: JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }),
           processingTime: Date.now() - startTime
         }
       });
@@ -421,10 +420,10 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
       skip: Number(offset),
       select: {
         id: true,
-        fileName: true,
-        fileType: true,
+        filename: true,
+        originalName: true,
+        mimeType: true,
         fileSize: true,
-        status: true,
         processingTime: true,
         createdAt: true,
         metadata: true
