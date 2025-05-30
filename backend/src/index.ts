@@ -33,6 +33,9 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5001;
 
+// Trust proxy - required for Render and other cloud platforms
+app.set('trust proxy', true);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false,
