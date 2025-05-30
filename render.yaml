@@ -42,7 +42,7 @@ services:
   # Frontend Service
   - type: static
     name: nexus-frontend
-    buildCommand: npm run install:frontend && npm run build:frontend
+    buildCommand: npm run build:simple
     staticPublishPath: ./frontend/build
     headers:
       - path: /*
