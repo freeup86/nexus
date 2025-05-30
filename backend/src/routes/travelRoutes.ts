@@ -167,6 +167,8 @@ router.post('/trips',
   validateRequest,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+      console.log('Trip creation request body:', req.body);
+      
       const userId = req.user?.userId;
       if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
@@ -174,6 +176,18 @@ router.post('/trips',
       }
 
       const { title, destination, startDate, endDate, description, tripType, totalBudget, currency } = req.body;
+      
+      console.log('Trip creation data:', {
+        userId,
+        title,
+        destination,
+        startDate,
+        endDate,
+        description,
+        tripType,
+        totalBudget,
+        currency
+      });
 
       // Validate dates
       if (new Date(endDate) < new Date(startDate)) {
@@ -181,23 +195,35 @@ router.post('/trips',
         return;
       }
 
+      const tripData = {
+        userId,
+        destination,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        purpose: tripType || 'vacation',
+        budget: totalBudget || null,
+        currency: currency || 'USD',
+        notes: title ? (description ? `${title}\n\n${description}` : title) : (description || null)
+      };
+      
+      console.log('Creating trip with data:', tripData);
+      
       const trip = await prisma.trip.create({
-        data: {
-          userId,
-          destination,
-          startDate: new Date(startDate),
-          endDate: new Date(endDate),
-          purpose: tripType || 'vacation',
-          budget: totalBudget || null,
-          currency: currency || 'USD',
-          notes: title ? (description ? `${title}\n\n${description}` : title) : (description || null)
-        }
+        data: tripData
       });
 
       res.status(201).json({ trip });
     } catch (error) {
       console.error('Create trip error:', error);
-      res.status(500).json({ error: 'Failed to create trip' });
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        prismaError: error
+      });
+      res.status(500).json({ 
+        error: 'Failed to create trip',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 );
