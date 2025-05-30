@@ -44,6 +44,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
   'https://nexus-frontend.onrender.com',
   'https://nexus-frontend-4s13.onrender.com',
+  'https://nexus-frontend-uy54.onrender.com',
   'http://localhost:3000',
   'http://localhost:5173' // Vite default port
 ];
