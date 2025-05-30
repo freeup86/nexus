@@ -375,6 +375,7 @@ router.post('/extract', upload.single('file'), async (req: AuthRequest, res: Res
           fileSize: updatedExtraction.fileSize,
           extractedText: updatedExtraction.extractedText,
           processingTime: updatedExtraction.processingTime,
+          status: 'completed',
           metadata: JSON.parse(updatedExtraction.metadata || '{}'),
           createdAt: updatedExtraction.createdAt
         }
@@ -433,11 +434,19 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
     const total = await prisma.textExtraction.count({ where: { userId } });
 
     res.json({
-      extractions: extractions.map(ext => ({
-        ...ext,
-        status: ext.processingTime ? 'completed' : 'processing',
-        metadata: ext.metadata ? JSON.parse(ext.metadata) : null
-      })),
+      extractions: extractions.map(ext => {
+        // Determine status based on multiple factors
+        let status = 'processing';
+        if (ext.processingTime && ext.processingTime > 0) {
+          status = 'completed';
+        }
+        
+        return {
+          ...ext,
+          status,
+          metadata: ext.metadata ? JSON.parse(ext.metadata) : null
+        };
+      }),
       total,
       limit: Number(limit),
       offset: Number(offset)
@@ -463,10 +472,16 @@ router.get('/extraction/:id', async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
+    // Determine status
+    let status = 'processing';
+    if (extraction.processingTime && extraction.processingTime > 0) {
+      status = 'completed';
+    }
+
     res.json({
       extraction: {
         ...extraction,
-        status: extraction.processingTime ? 'completed' : 'processing',
+        status,
         metadata: extraction.metadata ? JSON.parse(extraction.metadata) : null
       }
     });
@@ -508,16 +523,27 @@ router.delete('/extraction/:id', async (req: AuthRequest, res: Response): Promis
   }
 });
 
-// Fix stuck extractions (admin/debug endpoint)
+// Debug and fix stuck extractions
 router.post('/fix-stuck', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.userId;
 
-    // Find extractions that have text but no processing time
+    // Get all extractions for debugging
+    const allExtractions = await prisma.textExtraction.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    });
+
+    console.log('Recent extractions for user:', userId);
+    allExtractions.forEach(ext => {
+      console.log(`ID: ${ext.id}, ProcessingTime: ${ext.processingTime}, TextLength: ${ext.extractedText.length}, Created: ${ext.createdAt}`);
+    });
+
+    // Find extractions that need fixing
     const stuckExtractions = await prisma.textExtraction.findMany({
       where: {
         userId,
-        extractedText: { not: '' },
         OR: [
           { processingTime: null },
           { processingTime: 0 }
@@ -537,7 +563,13 @@ router.post('/fix-stuck', async (req: AuthRequest, res: Response): Promise<void>
 
     res.json({
       message: `Fixed ${stuckExtractions.length} stuck extractions`,
-      fixed: stuckExtractions.length
+      fixed: stuckExtractions.length,
+      debugInfo: allExtractions.map(ext => ({
+        id: ext.id.substring(0, 8),
+        processingTime: ext.processingTime,
+        textLength: ext.extractedText.length,
+        hasText: ext.extractedText.length > 0
+      }))
     });
   } catch (error) {
     console.error('Fix stuck extractions error:', error);
