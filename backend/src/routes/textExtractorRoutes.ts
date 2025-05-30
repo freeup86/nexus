@@ -375,7 +375,7 @@ router.post('/extract', upload.single('file'), async (req: AuthRequest, res: Res
           fileSize: updatedExtraction.fileSize,
           extractedText: updatedExtraction.extractedText,
           processingTime: updatedExtraction.processingTime,
-          status: 'completed',
+          status: 'COMPLETED',
           metadata: JSON.parse(updatedExtraction.metadata || '{}'),
           createdAt: updatedExtraction.createdAt
         }
@@ -436,9 +436,9 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
     res.json({
       extractions: extractions.map(ext => {
         // Determine status based on multiple factors
-        let status = 'processing';
+        let status = 'PROCESSING';
         if (ext.processingTime && ext.processingTime > 0) {
-          status = 'completed';
+          status = 'COMPLETED';
         }
         
         return {
@@ -473,9 +473,9 @@ router.get('/extraction/:id', async (req: AuthRequest, res: Response): Promise<v
     }
 
     // Determine status
-    let status = 'processing';
+    let status = 'PROCESSING';
     if (extraction.processingTime && extraction.processingTime > 0) {
-      status = 'completed';
+      status = 'COMPLETED';
     }
 
     res.json({
@@ -574,6 +574,43 @@ router.post('/fix-stuck', async (req: AuthRequest, res: Response): Promise<void>
   } catch (error) {
     console.error('Fix stuck extractions error:', error);
     res.status(500).json({ error: 'Failed to fix stuck extractions' });
+  }
+});
+
+// Temporary public debug endpoint (remove after debugging)
+router.get('/debug-status', async (req, res): Promise<void> => {
+  try {
+    // Get recent extractions across all users for debugging
+    const recentExtractions = await prisma.textExtraction.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        processingTime: true,
+        extractedText: true,
+        createdAt: true,
+        userId: true
+      }
+    });
+
+    const debugInfo = recentExtractions.map(ext => ({
+      id: ext.id.substring(0, 8),
+      userId: ext.userId.substring(0, 8),
+      processingTime: ext.processingTime,
+      textLength: ext.extractedText.length,
+      hasText: ext.extractedText.length > 0,
+      status: (ext.processingTime && ext.processingTime > 0) ? 'COMPLETED' : 'PROCESSING',
+      createdAt: ext.createdAt
+    }));
+
+    res.json({
+      message: 'Debug info for recent extractions',
+      extractions: debugInfo,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ error: 'Failed to get debug info' });
   }
 });
 
