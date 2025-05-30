@@ -42,9 +42,8 @@ services:
   # Frontend Service
   - type: static
     name: nexus-frontend
-    rootDirectory: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    buildCommand: npm run install:frontend && npm run build:frontend
+    staticPublishPath: ./frontend/build
     headers:
       - path: /*
         name: X-Frame-Options
