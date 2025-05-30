@@ -155,7 +155,7 @@ router.get('/trips/:id',
 // Create trip
 router.post('/trips',
   [
-    body('title').notEmpty().trim(),
+    body('title').optional().trim(),
     body('destination').notEmpty().trim(),
     body('startDate').isISO8601(),
     body('endDate').isISO8601(),
@@ -190,7 +190,7 @@ router.post('/trips',
           purpose: tripType || 'vacation',
           budget: totalBudget || null,
           currency: currency || 'USD',
-          notes: description || null
+          notes: title ? (description ? `${title}\n\n${description}` : title) : (description || null)
         }
       });
 
