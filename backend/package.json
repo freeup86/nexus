@@ -25,6 +25,7 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.15.21",
+    "@types/pdf-parse": "^1.1.5",
     "@types/sharp": "^0.31.1",
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
@@ -54,7 +55,6 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@types/form-data": "^2.2.1",
-    "@types/pdf-parse": "^1.1.5"
+    "@types/form-data": "^2.2.1"
   }
 }
