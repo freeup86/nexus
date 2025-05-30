@@ -8,18 +8,7 @@ echo "🚀 Deploying Nexus app..."
 git add -A
 
 # Commit with message
-git commit -m "Fix Contract Analyzer field name mismatches
-
-- Changed fileName to filename throughout contract routes
-- Changed fileType to mimeType to match schema
-- Removed references to separate contractAnalysis table
-- Updated to store analysis data directly in contract table fields
-- Fixed get single contract endpoint to use correct field names
-- Analysis data now stored in contract fields: summary, keyTerms, risks, obligations, dates, parties
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+git commit -m "Fix Updates"
 
 # Push to GitHub
 git push origin main

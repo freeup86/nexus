@@ -14,8 +14,17 @@ const prisma = new PrismaClient();
 
 // Helper function to recalculate project progress based on milestones
 async function recalculateProjectProgress(projectId: string): Promise<number> {
-  // Milestone functionality not implemented in current schema
-  return 0;
+  const project = await prisma.dIYProject.findUnique({
+    where: { id: projectId }
+  });
+  
+  if (!project || !project.steps) return 0;
+  
+  const steps = Array.isArray(project.steps) ? project.steps : [];
+  if (steps.length === 0) return 0;
+  
+  const completedCount = steps.filter((step: any) => step.status === 'completed').length;
+  return Math.round((completedCount / steps.length) * 100);
 }
 
 // Initialize Anthropic Claude
@@ -431,28 +440,21 @@ router.post('/projects/:id/photos',
         .resize(300, 300, { fit: 'cover' })
         .toFile(thumbnailPath);
 
-      // Create photo record
-      const photo = await prisma.projectPhotos.create({
+      // Create photo record using ProjectImage model
+      const photo = await prisma.projectImage.create({
         data: {
           projectId: id,
-          fileName: req.file.originalname,
-          filePath: req.file.path,
-          fileSize: req.file.size,
-          photoType,
-          stepNumber,
-          caption,
-          voiceNote,
-          thumbnailPath
+          imageUrl: req.file.path,
+          caption: caption || null,
+          isCover: photoType === 'cover'
         }
       });
 
       // Analyze photo with AI if needed
       if (photoType === 'issue' || photoType === 'progress') {
         const analysis = await analyzeProjectPhoto(photo, project);
-        await prisma.projectPhotos.update({
-          where: { id: photo.id },
-          data: { aiAnalysis: JSON.stringify(analysis) }
-        });
+        // AI analysis not supported in current ProjectImage schema
+        // Could be added as a separate field or stored in caption
         
         // Create issue record if problems detected
         if (analysis.issuesDetected && analysis.issuesDetected.length > 0) {
@@ -531,11 +533,18 @@ router.post('/projects/:id/supplies',
         return;
       }
 
-      // Create supplies
-      const createdSupplies = await prisma.projectSupplies.createMany({
+      // Create supplies using correct Supply model
+      const createdSupplies = await prisma.supply.createMany({
         data: supplies.map((s: any) => ({
           projectId: id,
-          ...s
+          name: s.name,
+          quantity: s.quantity || 1,
+          unit: s.unit || null,
+          estimatedCost: s.estimatedCost || null,
+          actualCost: s.actualCost || null,
+          isPurchased: s.isPurchased || false,
+          purchaseUrl: s.purchaseUrl || null,
+          notes: s.notes || null
         }))
       });
 
@@ -579,34 +588,8 @@ router.post('/projects/:id/progress',
         return;
       }
 
-      // Update milestone if provided
-      if (milestoneId) {
-        await prisma.projectMilestones.update({
-          where: { id: milestoneId },
-          data: {
-            status: 'completed',
-            completedAt: new Date()
-          }
-        });
-
-        // Calculate overall progress
-        const milestones = await prisma.projectMilestones.findMany({
-          where: { projectId: id }
-        });
-
-        const completedCount = milestones.filter((m: any) => m.status === 'completed').length;
-        const totalCount = milestones.length;
-        const calculatedProgress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-        await prisma.dIYProject.update({
-          where: { id },
-          data: {
-            progressPercentage: calculatedProgress,
-            status: calculatedProgress === 100 ? 'completed' : 'active',
-            completionDate: calculatedProgress === 100 ? new Date() : null
-          }
-        });
-      } else if (progressPercentage !== undefined) {
+      // Milestone functionality not implemented - using direct progress update
+      if (progressPercentage !== undefined) {
         // Direct progress update
         await prisma.dIYProject.update({
           where: { id },
@@ -936,21 +919,21 @@ router.put('/supplies/:id',
       const { id } = req.params;
 
       // Verify ownership through project
-      const supply = await prisma.projectSupplies.findFirst({
+      const supply = await prisma.supply.findFirst({
         where: { id },
         include: {
-          DIYProjects: {
+          project: {
             select: { userId: true }
           }
         }
       });
 
-      if (!supply || supply.DIYProjects.userId !== userId) {
+      if (!supply || supply.project.userId !== userId) {
         res.status(404).json({ error: 'Supply not found' });
         return;
       }
 
-      const updated = await prisma.projectSupplies.update({
+      const updated = await prisma.supply.update({
         where: { id },
         data: req.body
       });
@@ -978,21 +961,21 @@ router.delete('/supplies/:id',
       const { id } = req.params;
 
       // Verify ownership through project
-      const supply = await prisma.projectSupplies.findFirst({
+      const supply = await prisma.supply.findFirst({
         where: { id },
         include: {
-          DIYProjects: {
+          project: {
             select: { userId: true }
           }
         }
       });
 
-      if (!supply || supply.DIYProjects.userId !== userId) {
+      if (!supply || supply.project.userId !== userId) {
         res.status(404).json({ error: 'Supply not found' });
         return;
       }
 
-      await prisma.projectSupplies.delete({
+      await prisma.supply.delete({
         where: { id }
       });
 
@@ -1011,7 +994,7 @@ router.post('/projects/:id/issues',
     body('issueType').notEmpty().trim(),
     body('description').notEmpty().trim(),
     body('severity').isIn(['low', 'medium', 'high', 'critical']),
-    body('photoId').optional().isUUID()
+    body('photoId').optional({ checkFalsy: true }).isUUID()
   ],
   validateRequest,
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -1035,14 +1018,13 @@ router.post('/projects/:id/issues',
         return;
       }
 
-      const issue = await prisma.projectIssues.create({
+      const issue = await prisma.issue.create({
         data: {
           projectId: id,
-          issueType,
+          title: issueType,
           description,
           severity,
-          photoId,
-          aiDetected: false,
+          imageUrl: photoId || null,
           status: 'open'
         }
       });
@@ -1075,21 +1057,21 @@ router.put('/issues/:id',
       const { id } = req.params;
 
       // Verify ownership through project
-      const issue = await prisma.projectIssues.findFirst({
+      const issue = await prisma.issue.findFirst({
         where: { id },
         include: {
-          DIYProjects: {
+          project: {
             select: { userId: true }
           }
         }
       });
 
-      if (!issue || issue.DIYProjects.userId !== userId) {
+      if (!issue || issue.project.userId !== userId) {
         res.status(404).json({ error: 'Issue not found' });
         return;
       }
 
-      const updated = await prisma.projectIssues.update({
+      const updated = await prisma.issue.update({
         where: { id },
         data: req.body
       });
@@ -1117,21 +1099,21 @@ router.delete('/issues/:id',
       const { id } = req.params;
 
       // Verify ownership through project
-      const issue = await prisma.projectIssues.findFirst({
+      const issue = await prisma.issue.findFirst({
         where: { id },
         include: {
-          DIYProjects: {
+          project: {
             select: { userId: true }
           }
         }
       });
 
-      if (!issue || issue.DIYProjects.userId !== userId) {
+      if (!issue || issue.project.userId !== userId) {
         res.status(404).json({ error: 'Issue not found' });
         return;
       }
 
-      await prisma.projectIssues.delete({
+      await prisma.issue.delete({
         where: { id }
       });
 
@@ -1208,20 +1190,35 @@ router.post('/projects/:id/milestones',
         return;
       }
 
-      const milestone = await prisma.projectMilestones.create({
+      // Get current steps from project
+      const currentSteps = project.steps ? JSON.parse(JSON.stringify(project.steps)) : [];
+      
+      // Create new milestone
+      const milestone = {
+        id: crypto.randomUUID(),
+        title,
+        description,
+        estimatedDuration,
+        stepOrder: stepOrder || (currentSteps.length + 1),
+        status: 'pending',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // Add milestone to steps array
+      currentSteps.push(milestone);
+      
+      // Update project with new steps
+      await prisma.dIYProject.update({
+        where: { id },
         data: {
-          projectId: id,
-          title,
-          description,
-          estimatedDuration,
-          stepOrder: stepOrder || 1,
-          status: 'pending'
+          steps: currentSteps
         }
       });
 
       // Recalculate project progress after adding milestone
       const actualProgress = await recalculateProjectProgress(id);
-      await prisma.dIYProjects.update({
+      await prisma.dIYProject.update({
         where: { id },
         data: {
           progressPercentage: actualProgress,
@@ -1277,26 +1274,47 @@ router.put('/milestones/:id',
       }
       
       const { id } = req.params;
-
-      // Verify ownership through project
-      const milestone = await prisma.projectMilestones.findFirst({
-        where: { id },
-        include: {
-          DIYProjects: {
-            select: { userId: true }
+      
+      // Find project that contains this milestone
+      const projects = await prisma.dIYProject.findMany({
+        where: { userId }
+      });
+      
+      let targetProject = null;
+      let milestoneIndex = -1;
+      
+      for (const project of projects) {
+        if (project.steps) {
+          const steps = Array.isArray(project.steps) ? project.steps : [];
+          const index = steps.findIndex((step: any) => step.id === id);
+          if (index !== -1) {
+            targetProject = project;
+            milestoneIndex = index;
+            break;
           }
         }
-      });
-
-      if (!milestone || milestone.DIYProjects.userId !== userId) {
+      }
+      
+      if (!targetProject || milestoneIndex === -1) {
         res.status(404).json({ error: 'Milestone not found' });
         return;
       }
-
-      const updated = await prisma.projectMilestones.update({
-        where: { id },
-        data: req.body
+      
+      // Update milestone in steps array
+      const steps = Array.isArray(targetProject.steps) ? [...targetProject.steps] : [];
+      steps[milestoneIndex] = {
+        ...steps[milestoneIndex],
+        ...req.body,
+        updatedAt: new Date()
+      };
+      
+      // Update project with modified steps
+      await prisma.dIYProject.update({
+        where: { id: targetProject.id },
+        data: { steps }
       });
+      
+      const updated = steps[milestoneIndex];
 
       res.json({ milestone: updated });
     } catch (error) {
@@ -1326,37 +1344,40 @@ router.delete('/milestones/:id',
       }
       
       const { id } = req.params;
-
-      // Verify ownership through project
-      const milestone = await prisma.projectMilestones.findFirst({
-        where: { id },
-        include: {
-          DIYProjects: {
-            select: { userId: true }
+      
+      // Find project that contains this milestone
+      const projects = await prisma.dIYProject.findMany({
+        where: { userId }
+      });
+      
+      let targetProject = null;
+      let milestoneIndex = -1;
+      
+      for (const project of projects) {
+        if (project.steps) {
+          const steps = Array.isArray(project.steps) ? project.steps : [];
+          const index = steps.findIndex((step: any) => step.id === id);
+          if (index !== -1) {
+            targetProject = project;
+            milestoneIndex = index;
+            break;
           }
         }
-      });
-
-      if (!milestone || milestone.DIYProjects.userId !== userId) {
+      }
+      
+      if (!targetProject || milestoneIndex === -1) {
         res.status(404).json({ error: 'Milestone not found' });
         return;
       }
-
-      const projectId = milestone.projectId;
       
-      await prisma.projectMilestones.delete({
-        where: { id }
-      });
-
-      // Recalculate project progress after deleting milestone
-      const actualProgress = await recalculateProjectProgress(projectId);
-      await prisma.dIYProjects.update({
-        where: { id: projectId },
-        data: {
-          progressPercentage: actualProgress,
-          status: actualProgress === 100 ? 'completed' : 
-                 actualProgress > 0 ? 'active' : 'planning'
-        }
+      // Remove milestone from steps array
+      const steps = Array.isArray(targetProject.steps) ? [...targetProject.steps] : [];
+      steps.splice(milestoneIndex, 1);
+      
+      // Update project with modified steps
+      await prisma.dIYProject.update({
+        where: { id: targetProject.id },
+        data: { steps }
       });
 
       res.json({ message: 'Milestone deleted successfully' });

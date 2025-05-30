@@ -119,7 +119,7 @@ router.get('/trips/:id',
 
       const { id } = req.params;
 
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id, userId },
         include: {
           TripExpenses: true,
@@ -181,17 +181,16 @@ router.post('/trips',
         return;
       }
 
-      const trip = await prisma.trips.create({
+      const trip = await prisma.trip.create({
         data: {
           userId,
-          title,
           destination,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          description,
-          tripType,
-          totalBudget,
+          purpose: tripType || 'vacation',
+          budget: totalBudget || null,
           currency: currency || 'USD',
+          notes: description || null
         }
       });
 
@@ -224,7 +223,7 @@ router.put('/trips/:id',
       const { id } = req.params;
       
       // Verify ownership
-      const existingTrip = await prisma.trips.findFirst({
+      const existingTrip = await prisma.trip.findFirst({
         where: { id, userId }
       });
 
@@ -233,7 +232,7 @@ router.put('/trips/:id',
         return;
       }
 
-      const trip = await prisma.trips.update({
+      const trip = await prisma.trip.update({
         where: { id },
         data: req.body
       });
@@ -261,7 +260,7 @@ router.delete('/trips/:id',
       const { id } = req.params;
 
       // Verify ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id, userId }
       });
 
@@ -270,7 +269,7 @@ router.delete('/trips/:id',
         return;
       }
 
-      await prisma.trips.delete({
+      await prisma.trip.delete({
         where: { id }
       });
 
@@ -294,7 +293,7 @@ router.get('/trips/:tripId/itinerary',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -340,7 +339,7 @@ router.post('/trips/:tripId/itinerary/:dayId/items',
       const { tripId, dayId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -378,7 +377,7 @@ router.delete('/trips/:tripId/itinerary/:dayId/items/:itemId',
       const { tripId, itemId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -411,7 +410,7 @@ router.get('/trips/:tripId/expenses',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -450,7 +449,7 @@ router.post('/trips/:tripId/expenses',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -473,7 +472,7 @@ router.post('/trips/:tripId/expenses',
         _sum: { amount: true }
       });
 
-      await prisma.trips.update({
+      await prisma.trip.update({
         where: { id: tripId },
         data: { actualSpent: totalSpent._sum.amount || 0 }
       });
@@ -502,7 +501,7 @@ router.put('/trips/:tripId/expenses/:expenseId',
       const { tripId, expenseId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -525,7 +524,7 @@ router.put('/trips/:tripId/expenses/:expenseId',
         _sum: { amount: true }
       });
 
-      await prisma.trips.update({
+      await prisma.trip.update({
         where: { id: tripId },
         data: { actualSpent: totalSpent._sum.amount || 0 }
       });
@@ -551,7 +550,7 @@ router.delete('/trips/:tripId/expenses/:expenseId',
       const { tripId, expenseId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -570,7 +569,7 @@ router.delete('/trips/:tripId/expenses/:expenseId',
         _sum: { amount: true }
       });
 
-      await prisma.trips.update({
+      await prisma.trip.update({
         where: { id: tripId },
         data: { actualSpent: totalSpent._sum.amount || 0 }
       });
@@ -595,7 +594,7 @@ router.get('/trips/:tripId/packing',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -647,7 +646,7 @@ router.post('/trips/:tripId/packing',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -697,7 +696,7 @@ router.put('/trips/:tripId/packing/:itemId',
       const { tripId, itemId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -732,7 +731,7 @@ router.delete('/trips/:tripId/packing/:itemId',
       const { tripId, itemId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -765,7 +764,7 @@ router.get('/trips/:tripId/documents',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -802,7 +801,7 @@ router.post('/trips/:tripId/documents',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -848,7 +847,7 @@ router.put('/trips/:tripId/documents/:documentId',
       const { tripId, documentId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -892,7 +891,7 @@ router.get('/trips/:tripId/documents/:documentId/view',
       const { tripId, documentId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -931,7 +930,7 @@ router.delete('/trips/:tripId/documents/:documentId',
       const { tripId, documentId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -976,7 +975,7 @@ router.get('/trips/:tripId/photos',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1009,7 +1008,7 @@ router.post('/trips/:tripId/photos',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1061,7 +1060,7 @@ router.put('/trips/:tripId/photos/:photoId',
       const { tripId, photoId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1096,7 +1095,7 @@ router.get('/trips/:tripId/photos/:photoId/view',
       const { tripId, photoId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1135,7 +1134,7 @@ router.get('/trips/:tripId/photos/:photoId/thumbnail',
       const { tripId, photoId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1175,7 +1174,7 @@ router.delete('/trips/:tripId/photos/:photoId',
       const { tripId, photoId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1220,7 +1219,7 @@ router.get('/trips/:tripId/companions',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1257,7 +1256,7 @@ router.post('/trips/:tripId/companions',
       const { tripId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1298,7 +1297,7 @@ router.put('/trips/:tripId/companions/:companionId',
       const { tripId, companionId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1335,7 +1334,7 @@ router.put('/trips/:tripId/companions/:companionId/status',
       const { status } = req.body;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1375,7 +1374,7 @@ router.delete('/trips/:tripId/companions/:companionId',
       const { tripId, companionId } = req.params;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
@@ -1415,7 +1414,7 @@ router.post('/trips/:tripId/generate-itinerary',
       const { keywords, duration, preferences } = req.body;
 
       // Verify trip ownership
-      const trip = await prisma.trips.findFirst({
+      const trip = await prisma.trip.findFirst({
         where: { id: tripId, userId }
       });
 
