@@ -65,9 +65,7 @@ router.post('/generate',
           data: {
             userId,
             content: tweetContent,
-            topic: prompt, // Store the prompt as topic
-            tone: 'ai-generated',
-            status: 'DRAFT'
+            status: 'draft' // lowercase to match schema default
           }
         });
 
@@ -119,9 +117,7 @@ router.post('/schedule',
         data: {
           userId,
           content,
-          topic: prompt || null,
-          tone: aiGenerated ? 'ai-generated' : null,
-          status: scheduledFor ? 'SCHEDULED' : 'DRAFT',
+          status: scheduledFor ? 'scheduled' : 'draft',
           scheduledFor: scheduledFor ? new Date(scheduledFor) : null
         }
       });
@@ -338,8 +334,8 @@ router.post('/tweets/:id/publish', async (req: AuthRequest, res: Response): Prom
     const updatedTweet = await prisma.tweet.update({
       where: { id },
       data: {
-        status: 'PUBLISHED',
-        publishedAt: new Date(),
+        status: 'published',
+        postedAt: new Date(),
         twitterId: data.id
       }
     });
@@ -352,7 +348,7 @@ router.post('/tweets/:id/publish', async (req: AuthRequest, res: Response): Prom
     // Mark as failed
     await prisma.tweet.update({
       where: { id: req.params.id },
-      data: { status: 'FAILED' }
+      data: { status: 'failed' }
     });
 
     // Provide more specific error message
