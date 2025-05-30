@@ -35,7 +35,7 @@ services:
       - key: BEARER_TOKEN
         sync: false
       - key: FRONTEND_URL
-        value: https://nexus-frontend.onrender.com
+        value: https://nexus-frontend-4s13.onrender.com
       - key: PORT
         value: 10000
 
@@ -61,4 +61,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://nexus-backend.onrender.com/api
+        value: https://nexus-backend-1bjk.onrender.com/api
