@@ -1,0 +1,8 @@
+services:
+  - type: static
+    name: nexus-frontend-standalone
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://nexus-backend-1bjk.onrender.com/api
