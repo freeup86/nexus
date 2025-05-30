@@ -33,8 +33,8 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5001;
 
-// Trust proxy - required for Render and other cloud platforms
-app.set('trust proxy', true);
+// Trust proxy - configure for Render's proxy
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet({
@@ -73,7 +73,14 @@ app.use(cors({
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip localhost
+  skip: (req) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    return ip === '127.0.0.1' || ip === '::1';
+  }
 });
 
 app.use('/api/', limiter);
