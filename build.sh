@@ -14,15 +14,25 @@ else
     exit 1
 fi
 
-echo "=== Checking frontend package.json ==="
-if [ -f "frontend/package.json" ]; then
-    echo "✓ frontend/package.json exists"
-    echo "Available scripts in frontend:"
-    cd frontend && npm run && cd ..
+echo "=== Looking for frontend directory ==="
+# Check if we're in a src subdirectory
+if [ -d "../frontend" ] && [ -f "../frontend/package.json" ]; then
+    echo "✓ Found frontend in parent directory"
+    cd ..
+elif [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+    echo "✓ Found frontend in current directory"
 else
-    echo "✗ frontend/package.json not found!"
+    echo "✗ Frontend directory not found!"
+    echo "Current directory contents:"
+    ls -la
+    echo "Parent directory contents:"
+    ls -la ..
     exit 1
 fi
+
+echo "=== Checking frontend package.json ==="
+echo "Available scripts in frontend:"
+cd frontend && npm run && cd ..
 
 echo "=== Installing frontend dependencies ==="
 cd frontend
