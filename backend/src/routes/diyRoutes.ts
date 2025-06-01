@@ -158,11 +158,11 @@ router.get('/projects/:id',
           id,
           OR: [
             { userId },
-            { CommunityShares: { some: { isPublic: true } } }
+            { isPublic: true }
           ]
         },
         include: {
-          User: {
+          user: {
             select: {
               id: true,
               username: true,
@@ -459,15 +459,13 @@ router.post('/projects/:id/photos',
         // Create issue record if problems detected
         if (analysis.issuesDetected && analysis.issuesDetected.length > 0) {
           for (const issue of analysis.issuesDetected) {
-            await prisma.projectIssues.create({
+            await prisma.issue.create({
               data: {
                 projectId: id,
-                photoId: photo.id,
-                issueType: (issue as any).type,
+                title: (issue as any).type || 'AI Detected Issue',
                 description: (issue as any).description,
-                severity: (issue as any).severity,
-                aiDetected: true,
-                aiSuggestions: JSON.stringify((issue as any).suggestions)
+                severity: (issue as any).severity || 'medium',
+                imageUrl: photo.imageUrl
               }
             });
           }
@@ -537,7 +535,7 @@ router.post('/projects/:id/supplies',
       const createdSupplies = await prisma.supply.createMany({
         data: supplies.map((s: any) => ({
           projectId: id,
-          name: s.name,
+          name: s.itemName,
           quantity: s.quantity || 1,
           unit: s.unit || null,
           estimatedCost: s.estimatedCost || null,
@@ -678,8 +676,8 @@ router.post('/community/share',
   }
 );
 
-// Browse community gallery
-router.get('/community/gallery',
+// Browse community gallery - DISABLED: communityShares model doesn't exist
+/* router.get('/community/gallery',
   [
     query('page').optional().isInt({ min: 1 }),
     query('limit').optional().isInt({ min: 1, max: 50 }),
@@ -727,7 +725,7 @@ router.get('/community/gallery',
           include: {
             DIYProjects: {
               include: {
-                User: {
+                user: {
                   select: {
                     id: true,
                     username: true,
@@ -735,19 +733,20 @@ router.get('/community/gallery',
                     lastName: true
                   }
                 },
-                ProjectPhotos: {
+                images: {
                   take: 3,
-                  orderBy: { takenAt: 'desc' }
+                  orderBy: { uploadedAt: 'desc' }
                 },
                 _count: {
                   select: {
-                    ProjectPhotos: true,
-                    ProjectMilestones: true
+                    images: true,
+                    supplies: true,
+                    issues: true
                   }
                 }
               }
             },
-            User: {
+            user: {
               select: {
                 id: true,
                 username: true,
@@ -755,11 +754,12 @@ router.get('/community/gallery',
                 lastName: true
               }
             },
-            ProjectPhotos: true,
+            images: true,
             _count: {
               select: {
-                ProjectComments: true,
-                ProjectLikes: true
+                images: true,
+                supplies: true,
+                issues: true
               }
             }
           },
@@ -784,10 +784,10 @@ router.get('/community/gallery',
       res.status(500).json({ error: 'Failed to get community projects' });
     }
   }
-);
+); */
 
-// Request help from community
-router.post('/community/help',
+// Request help from community - DISABLED: helpRequests model doesn't exist
+/* router.post('/community/help',
   [
     body('projectId').isUUID(),
     body('title').notEmpty().trim(),
@@ -826,14 +826,13 @@ router.post('/community/help',
           photoId
         },
         include: {
-          DIYProjects: {
+          project: {
             select: {
               id: true,
               title: true,
-              projectType: true
+              category: true
             }
-          },
-          ProjectPhotos: true
+          }
         }
       });
 
@@ -843,7 +842,7 @@ router.post('/community/help',
       res.status(500).json({ error: 'Failed to create help request' });
     }
   }
-);
+); */
 
 // Delete project
 router.delete('/projects/:id',
@@ -863,7 +862,9 @@ router.delete('/projects/:id',
       const project = await prisma.dIYProject.findFirst({
         where: { id, userId },
         include: {
-          ProjectPhotos: true
+          images: true,
+          supplies: true,
+          issues: true
         }
       });
 
@@ -873,19 +874,17 @@ router.delete('/projects/:id',
       }
 
       // Delete photo files
-      for (const photo of project.ProjectPhotos) {
+      for (const photo of project.images) {
         try {
-          await fs.unlink(photo.filePath);
-          if (photo.thumbnailPath) {
-            await fs.unlink(photo.thumbnailPath);
-          }
+          await fs.unlink(photo.imageUrl);
+          // Note: thumbnailPath not in schema, skipping thumbnail deletion
         } catch (error) {
           console.error('Error deleting photo file:', error);
         }
       }
 
       // Delete project (cascading deletes will handle related records)
-      await prisma.dIYProjects.delete({
+      await prisma.dIYProject.delete({
         where: { id }
       });
 
@@ -1471,9 +1470,9 @@ Please create a comprehensive project plan.`;
     console.error('AI project plan generation error:', error);
     return {
       error: 'Failed to generate project plan',
-      ProjectSupplies: [],
-      ProjectTools: [],
-      ProjectMilestones: [],
+      supplies: [],
+      tools: [],
+      milestones: [],
       safetyTips: [],
       commonMistakes: [],
       costSavingTips: []
