@@ -9,7 +9,9 @@ import {
   DocumentIcon,
   CalendarIcon,
   ScaleIcon,
-  WrenchScrewdriverIcon
+  WrenchScrewdriverIcon,
+  GlobeAltIcon,
+  MoonIcon
 } from '@heroicons/react/24/outline';
 
 const utilities = [
@@ -52,6 +54,22 @@ const utilities = [
     href: '/diy-projects',
     color: 'bg-orange-500',
     stats: { label: 'Projects', value: '0' }
+  },
+  {
+    name: 'Travel Planner',
+    description: 'Plan and organize trips with AI-powered suggestions',
+    icon: GlobeAltIcon,
+    href: '/travel-planner',
+    color: 'bg-teal-500',
+    stats: { label: 'Trips', value: '0' }
+  },
+  {
+    name: 'Dream Journal',
+    description: 'Record and analyze your dreams with AI insights',
+    icon: MoonIcon,
+    href: '/dream-journal',
+    color: 'bg-purple-600',
+    stats: { label: 'Dreams', value: '0' }
   }
 ];
 

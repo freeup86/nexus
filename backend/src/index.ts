@@ -18,6 +18,7 @@ import decisionRoutes from './routes/decisionRoutes';
 import diyRoutes from './routes/diyRoutes';
 import travelRoutes from './routes/travelRoutes';
 import documentRoutes from './routes/documentRoutes';
+import dreamRoutes from './routes/dreamRoutes';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -123,6 +124,7 @@ app.use('/api/decisions', authenticateToken, decisionRoutes);
 app.use('/api/diy', authenticateToken, diyRoutes);
 app.use('/api/travel', authenticateToken, travelRoutes);
 app.use('/api/documents', authenticateTokenSimple, documentRoutes);
+app.use('/api/dreams', authenticateToken, dreamRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

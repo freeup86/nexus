@@ -33,6 +33,8 @@ model User {
   decisions       Decision[]
   diyProjects     DIYProject[]
   trips           Trip[]
+  dreams          Dream[]
+  dreamPatterns   DreamPattern[]
 }
 
 model Session {
@@ -302,4 +304,73 @@ model TripPhoto {
   takenAt     DateTime?
   uploadedAt  DateTime @default(now())
   trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+}
+
+model Dream {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  content     String   @db.Text
+  dreamDate   DateTime @default(now())
+  emotions    Json?    // Array of emotions detected
+  themes      Json?    // Array of themes identified
+  symbols     Json?    // Array of symbols and their meanings
+  lucidity    Int?     @default(0) // 0-10 scale
+  clarity     Int?     @default(5) // 0-10 scale
+  mood        String?  // Overall mood
+  analysis    String?  @db.Text // AI analysis result
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags        DreamTag[]
+  insights    DreamInsight[]
+  
+  @@index([userId])
+  @@index([dreamDate])
+}
+
+model DreamTag {
+  id        String   @id @default(cuid())
+  dreamId   String
+  tag       String
+  createdAt DateTime @default(now())
+  
+  dream     Dream    @relation(fields: [dreamId], references: [id], onDelete: Cascade)
+  
+  @@unique([dreamId, tag])
+  @@index([tag])
+}
+
+model DreamInsight {
+  id        String   @id @default(cuid())
+  dreamId   String
+  type      String   // 'pattern', 'symbol', 'emotion', 'theme'
+  insight   String   @db.Text
+  confidence Float?  // 0-1 confidence score
+  createdAt DateTime @default(now())
+  
+  dream     Dream    @relation(fields: [dreamId], references: [id], onDelete: Cascade)
+  
+  @@index([dreamId])
+  @@index([type])
+}
+
+model DreamPattern {
+  id          String   @id @default(cuid())
+  userId      String
+  patternType String   // 'recurring_theme', 'emotional_trend', 'symbol_frequency'
+  patternKey  String   // Unique key for the pattern (e.g., theme name, symbol name)
+  pattern     Json     // Pattern data
+  frequency   Int      @default(1)
+  firstSeen   DateTime
+  lastSeen    DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, patternType, patternKey])
+  @@index([userId])
+  @@index([patternType])
 }

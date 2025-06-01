@@ -12,7 +12,8 @@ import {
   ScaleIcon,
   WrenchScrewdriverIcon,
   GlobeAltIcon,
-  SparklesIcon
+  SparklesIcon,
+  MoonIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Decision Support', href: '/decision-support', icon: ScaleIcon },
   { name: 'DIY Projects', href: '/diy-projects', icon: WrenchScrewdriverIcon },
   { name: 'Travel Planner', href: '/travel-planner', icon: GlobeAltIcon },
+  { name: 'Dream Journal', href: '/dream-journal', icon: MoonIcon },
 ];
 
 const secondaryNavigation = [
