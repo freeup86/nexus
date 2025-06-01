@@ -107,8 +107,8 @@ const TripDashboard: React.FC<TripDashboardProps> = ({
   };
 
   const filteredTrips = trips.filter(trip => {
-    const matchesSearch = trip.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         trip.destination.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (trip.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (trip.destination || '').toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
 
