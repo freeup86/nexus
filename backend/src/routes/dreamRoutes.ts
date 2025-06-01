@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '../generated/prisma';
-import authMiddleware from '../middleware/authMiddleware';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { Anthropic } from '@anthropic-ai/sdk';
 
 const router = Router();
@@ -10,9 +10,9 @@ const anthropic = new Anthropic({
 });
 
 // Get all dreams for the authenticated user
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.userId;
     const { page = 1, limit = 20, search, tag, startDate, endDate } = req.query;
 
     const where: any = { userId };
@@ -67,10 +67,10 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // Get a specific dream
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const userId = req.userId!;
+    const userId = req.user!.userId;
 
     const dream = await prisma.dream.findFirst({
       where: { id, userId },
@@ -92,9 +92,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Create a new dream
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.userId;
     const { title, content, dreamDate, emotions, lucidity, clarity, mood, tags } = req.body;
 
     // Start transaction to create dream and analyze it
@@ -237,10 +237,10 @@ Format your response as JSON with the following structure:
 });
 
 // Update a dream
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const userId = req.userId!;
+    const userId = req.user!.userId;
     const { title, content, dreamDate, emotions, lucidity, clarity, mood, tags } = req.body;
 
     // Check if dream exists and belongs to user
@@ -306,10 +306,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
 });
 
 // Delete a dream
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const userId = req.userId!;
+    const userId = req.user!.userId;
 
     // Check if dream exists and belongs to user
     const dream = await prisma.dream.findFirst({
@@ -332,9 +332,9 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 });
 
 // Get dream patterns for user
-router.get('/patterns/all', authMiddleware, async (req, res) => {
+router.get('/patterns/all', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.userId;
 
     const patterns = await prisma.dreamPattern.findMany({
       where: { userId },
@@ -349,9 +349,9 @@ router.get('/patterns/all', authMiddleware, async (req, res) => {
 });
 
 // Analyze patterns across all dreams
-router.post('/patterns/analyze', authMiddleware, async (req, res) => {
+router.post('/patterns/analyze', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.userId;
 
     // Fetch all dreams for analysis
     const dreams = await prisma.dream.findMany({
@@ -478,9 +478,9 @@ router.post('/patterns/analyze', authMiddleware, async (req, res) => {
 });
 
 // Get dream statistics
-router.get('/stats/overview', authMiddleware, async (req, res) => {
+router.get('/stats/overview', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.userId;
 
     const [totalDreams, recentDreams, avgLucidity, avgClarity, topTags] = await Promise.all([
       prisma.dream.count({ where: { userId } }),
