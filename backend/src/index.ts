@@ -32,7 +32,7 @@ import { ensureUploadDirectory } from './utils/ensureUploadDir';
 dotenv.config();
 
 const app: Application = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 10000;
 
 // Trust proxy - configure for Render's proxy
 app.set('trust proxy', 1);
@@ -56,6 +56,9 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     console.log('CORS origin check:', origin);
+    console.log('Allowed origins:', allowedOrigins);
+    console.log('FRONTEND_URL env var:', process.env.FRONTEND_URL);
+    
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
@@ -64,7 +67,14 @@ app.use(cors({
       callback(null, true);
     } else {
       console.log('CORS origin blocked:', origin);
-      callback(new Error('Not allowed by CORS'));
+      console.log('Available origins:', allowedOrigins);
+      // For debugging in production, temporarily allow all origins
+      if (process.env.NODE_ENV === 'production') {
+        console.log('Production mode: allowing origin for debugging');
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,

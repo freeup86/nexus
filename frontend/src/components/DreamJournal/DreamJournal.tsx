@@ -46,6 +46,7 @@ const DreamJournal: React.FC = () => {
   const fetchDreams = async () => {
     try {
       setLoading(true);
+      setError(null); // Clear previous errors
       const response = await dreamService.getDreams({
         page: pagination.page,
         limit: pagination.limit,
@@ -55,7 +56,9 @@ const DreamJournal: React.FC = () => {
       setDreams(response.dreams);
       setPagination(response.pagination);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Failed to fetch dreams:', err);
+      setError(`Failed to load dreams: ${err.message}`);
+      setDreams([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -66,7 +69,9 @@ const DreamJournal: React.FC = () => {
       const statsData = await dreamService.getDreamStats();
       setStats(statsData);
     } catch (err) {
-      console.error('Failed to fetch stats:', err);
+      console.error('Failed to fetch dream stats:', err);
+      // Don't set error state for stats - just log it
+      // Stats are optional, dreams functionality should still work
     }
   };
 

@@ -125,15 +125,27 @@ class DreamService {
   }
 
   async getDreamStats(): Promise<DreamStats> {
-    const response = await fetch(`${API_BASE_URL}/api/dreams/stats/overview`, {
-      headers: this.getAuthHeaders(),
-    });
+    console.log('Fetching dream stats from:', `${API_BASE_URL}/api/dreams/stats/overview`);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/dreams/stats/overview`, {
+        headers: this.getAuthHeaders(),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch statistics');
+      console.log('Dream stats response status:', response.status);
+      console.log('Dream stats response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Dream stats error response:', errorText);
+        throw new Error(`Failed to fetch statistics: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Dream stats fetch error:', error);
+      throw error;
     }
-
-    return response.json();
   }
 }
 

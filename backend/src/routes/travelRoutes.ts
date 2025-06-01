@@ -429,7 +429,7 @@ router.delete('/trips/:tripId/itinerary/:dayId/items/:itemId',
         return;
       }
 
-      await prisma.itineraryItems.delete({
+      await prisma.itineraryItem.delete({
         where: { id: itemId }
       });
 
@@ -509,16 +509,7 @@ router.post('/trips/:tripId/expenses',
         }
       });
 
-      // Update trip's actual spent amount
-      const totalSpent = await prisma.tripExpense.aggregate({
-        where: { tripId },
-        _sum: { amount: true }
-      });
-
-      await prisma.trip.update({
-        where: { id: tripId },
-        data: { actualSpent: totalSpent._sum.amount || 0 }
-      });
+      // Note: actualSpent field doesn't exist in schema
 
       res.status(201).json({ expense });
     } catch (error) {
@@ -561,16 +552,7 @@ router.put('/trips/:tripId/expenses/:expenseId',
         }
       });
 
-      // Update trip's actual spent amount
-      const totalSpent = await prisma.tripExpense.aggregate({
-        where: { tripId },
-        _sum: { amount: true }
-      });
-
-      await prisma.trip.update({
-        where: { id: tripId },
-        data: { actualSpent: totalSpent._sum.amount || 0 }
-      });
+      // Note: actualSpent field doesn't exist in schema
 
       res.json({ expense });
     } catch (error) {
@@ -606,16 +588,7 @@ router.delete('/trips/:tripId/expenses/:expenseId',
         where: { id: expenseId }
       });
 
-      // Update trip's actual spent amount
-      const totalSpent = await prisma.tripExpense.aggregate({
-        where: { tripId },
-        _sum: { amount: true }
-      });
-
-      await prisma.trip.update({
-        where: { id: tripId },
-        data: { actualSpent: totalSpent._sum.amount || 0 }
-      });
+      // Note: actualSpent field doesn't exist in schema
 
       res.json({ message: 'Expense deleted successfully' });
     } catch (error) {
@@ -685,21 +658,15 @@ router.post('/trips/:tripId/packing',
         return;
       }
 
-      // Get or create packing list
-      let packingList = await prisma.packingItem.findFirst({
-        where: { tripId }
-      });
+      // Create packing item directly
 
-      if (!packingList) {
-        packingList = await prisma.packingItem.create({
-          data: { tripId }
-        });
-      }
-
-      const item = await prisma.packingItems.create({
+      const item = await prisma.packingItem.create({
         data: {
-          packingListId: packingList.id,
-          ...req.body
+          tripId,
+          category: req.body.category || 'other',
+          item: req.body.itemName,
+          quantity: req.body.quantity || 1,
+          isEssential: req.body.isEssential || false
         }
       });
 
@@ -735,7 +702,7 @@ router.put('/trips/:tripId/packing/:itemId',
         return;
       }
 
-      const item = await prisma.packingItems.update({
+      const item = await prisma.packingItem.update({
         where: { id: itemId },
         data: req.body
       });
@@ -770,7 +737,7 @@ router.delete('/trips/:tripId/packing/:itemId',
         return;
       }
 
-      await prisma.packingItems.delete({
+      await prisma.packingItem.delete({
         where: { id: itemId }
       });
 
@@ -848,9 +815,12 @@ router.post('/trips/:tripId/documents',
       const document = await prisma.tripDocument.create({
         data: {
           tripId,
-          filePath: req.file.path,
-          ...req.body,
-          expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null
+          type: req.body.documentType,
+          name: req.body.title,
+          fileUrl: req.file.path,
+          fileSize: req.file.size,
+          expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
+          notes: req.body.notes || null
         }
       });
 
@@ -892,7 +862,8 @@ router.put('/trips/:tripId/documents/:documentId',
       };
 
       if (req.file) {
-        updateData.filePath = req.file.path;
+        updateData.fileUrl = req.file.path;
+        updateData.fileSize = req.file.size;
       }
 
       const document = await prisma.tripDocument.update({
@@ -934,12 +905,12 @@ router.get('/trips/:tripId/documents/:documentId/view',
         where: { id: documentId, tripId }
       });
 
-      if (!document || !document.filePath) {
+      if (!document || !document.fileUrl) {
         res.status(404).json({ error: 'Document not found' });
         return;
       }
 
-      res.sendFile(path.resolve(document.filePath));
+      res.sendFile(path.resolve(document.fileUrl));
     } catch (error) {
       console.error('View document error:', error);
       res.status(500).json({ error: 'Failed to view document' });
@@ -973,9 +944,9 @@ router.delete('/trips/:tripId/documents/:documentId',
         where: { id: documentId, tripId }
       });
 
-      if (document?.filePath) {
+      if (document?.fileUrl) {
         try {
-          await fs.unlink(document.filePath);
+          await fs.unlink(document.fileUrl);
         } catch (error) {
           console.error('Failed to delete file:', error);
         }
@@ -1058,7 +1029,7 @@ router.post('/trips/:tripId/photos',
           prisma.tripPhoto.create({
             data: {
               tripId,
-              filePath: file.path,
+              photoUrl: file.path,
               caption: req.body.caption || '',
               location: req.body.location || '',
               takenAt: req.body.takenAt ? new Date(req.body.takenAt) : new Date()
@@ -1138,12 +1109,12 @@ router.get('/trips/:tripId/photos/:photoId/view',
         where: { id: photoId, tripId }
       });
 
-      if (!photo || !photo.filePath) {
+      if (!photo || !photo.photoUrl) {
         res.status(404).json({ error: 'Photo not found' });
         return;
       }
 
-      res.sendFile(path.resolve(photo.filePath));
+      res.sendFile(path.resolve(photo.photoUrl));
     } catch (error) {
       console.error('View photo error:', error);
       res.status(500).json({ error: 'Failed to view photo' });
@@ -1177,13 +1148,13 @@ router.get('/trips/:tripId/photos/:photoId/thumbnail',
         where: { id: photoId, tripId }
       });
 
-      if (!photo || !photo.filePath) {
+      if (!photo || !photo.photoUrl) {
         res.status(404).json({ error: 'Photo not found' });
         return;
       }
 
       // For now, return the original photo. In a real app, you'd generate/serve a thumbnail
-      res.sendFile(path.resolve(photo.filePath));
+      res.sendFile(path.resolve(photo.photoUrl));
     } catch (error) {
       console.error('View thumbnail error:', error);
       res.status(500).json({ error: 'Failed to view thumbnail' });
@@ -1217,9 +1188,9 @@ router.delete('/trips/:tripId/photos/:photoId',
         where: { id: photoId, tripId }
       });
 
-      if (photo?.filePath) {
+      if (photo?.photoUrl) {
         try {
-          await fs.unlink(photo.filePath);
+          await fs.unlink(photo.photoUrl);
         } catch (error) {
           console.error('Failed to delete file:', error);
         }
@@ -1277,7 +1248,7 @@ router.post('/trips/:tripId/companions',
     param('tripId').custom(isValidGuid),
     body('name').notEmpty().trim(),
     body('email').optional().isEmail(),
-    body('role').optional().isIn(['organizer', 'companion'])
+    body('relationship').optional().trim()
   ],
   validateRequest,
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -1298,8 +1269,12 @@ router.post('/trips/:tripId/companions',
       const companion = await prisma.tripCompanion.create({
         data: {
           tripId,
-          ...req.body,
-          status: 'invited'
+          name: req.body.name,
+          email: req.body.email || null,
+          phone: req.body.phone || null,
+          relationship: req.body.relationship || null,
+          emergencyContact: req.body.emergencyContact || false,
+          notes: req.body.notes || null
         }
       });
 
@@ -1318,7 +1293,7 @@ router.put('/trips/:tripId/companions/:companionId',
     param('companionId').custom(isValidGuid),
     body('name').optional().notEmpty().trim(),
     body('email').optional().isEmail(),
-    body('role').optional().isIn(['organizer', 'companion'])
+    body('relationship').optional().trim()
   ],
   validateRequest,
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -1349,47 +1324,7 @@ router.put('/trips/:tripId/companions/:companionId',
   }
 );
 
-// Update companion status
-router.put('/trips/:tripId/companions/:companionId/status',
-  [
-    param('tripId').custom(isValidGuid),
-    param('companionId').custom(isValidGuid),
-    body('status').isIn(['invited', 'accepted', 'declined'])
-  ],
-  validateRequest,
-  async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-      const userId = req.user?.userId;
-      const { tripId, companionId } = req.params;
-      const { status } = req.body;
-
-      // Verify trip ownership
-      const trip = await prisma.trip.findFirst({
-        where: { id: tripId, userId }
-      });
-
-      if (!trip) {
-        res.status(404).json({ error: 'Trip not found' });
-        return;
-      }
-
-      const updateData: any = { status };
-      if (status === 'accepted') {
-        updateData.joinedAt = new Date();
-      }
-
-      const companion = await prisma.tripCompanion.update({
-        where: { id: companionId },
-        data: updateData
-      });
-
-      res.json({ companion });
-    } catch (error) {
-      console.error('Update companion status error:', error);
-      res.status(500).json({ error: 'Failed to update companion status' });
-    }
-  }
-);
+// Note: Companion status updates removed as schema doesn't support status/joinedAt fields
 
 // Delete companion
 router.delete('/trips/:tripId/companions/:companionId',
@@ -1680,77 +1615,23 @@ Generate activities for ALL ${finalDuration} days of the trip.`;
         try {
           const dayNumber = parseInt(day);
           
-          // Find or create the trip itinerary day
-          let tripDay = await prisma.tripItineraries.findFirst({
-            where: { tripId, dayNumber }
-          });
-
-          if (!tripDay) {
-            tripDay = await prisma.tripItineraries.create({
-              data: {
-                tripId,
-                dayNumber,
-                title: `Day ${dayNumber}`,
-                description: `Generated AI itinerary for day ${dayNumber}`,
-                date: trip.startDate ? new Date(new Date(trip.startDate).getTime() + (dayNumber - 1) * 24 * 60 * 60 * 1000) : new Date(),
-                createdAt: new Date()
-              }
-            });
-          }
-
           // Create itinerary items for this day
           for (const item of items) {
             try {
-              // Convert time string to ISO-8601 DateTime format
-              const convertTimeToISO = (timeStr: string, dayDate: Date): string => {
-                // Handle specific times like "9:00 AM", "2:30 PM"
-                const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-                if (timeMatch) {
-                  let hours = parseInt(timeMatch[1]);
-                  const minutes = parseInt(timeMatch[2]);
-                  const ampm = timeMatch[3].toUpperCase();
-                  
-                  if (ampm === 'PM' && hours !== 12) hours += 12;
-                  if (ampm === 'AM' && hours === 12) hours = 0;
-                  
-                  const newDate = new Date(dayDate);
-                  newDate.setHours(hours, minutes, 0, 0);
-                  return newDate.toISOString();
-                }
-                
-                // Handle general times like "Morning", "Afternoon", "Evening"
-                const newDate = new Date(dayDate);
-                if (timeStr.toLowerCase().includes('morning')) {
-                  newDate.setHours(9, 0, 0, 0);
-                } else if (timeStr.toLowerCase().includes('afternoon')) {
-                  newDate.setHours(14, 0, 0, 0);
-                } else if (timeStr.toLowerCase().includes('evening')) {
-                  newDate.setHours(18, 0, 0, 0);
-                } else {
-                  newDate.setHours(9, 0, 0, 0); // Default to 9 AM
-                }
-                return newDate.toISOString();
-              };
+              // Calculate date for this day of the trip
+              const dayDate = trip.startDate ? 
+                new Date(new Date(trip.startDate).getTime() + (dayNumber - 1) * 24 * 60 * 60 * 1000) : 
+                new Date();
 
-              const dayDate = tripDay.date;
-              const startTimeISO = convertTimeToISO(item.time, dayDate);
-              const endTimeISO = new Date(new Date(startTimeISO).getTime() + 60 * 60 * 1000).toISOString(); // Add 1 hour
-
-              const savedItem: any = await prisma.itineraryItems.create({
+              const savedItem: any = await prisma.itineraryItem.create({
                 data: {
-                  itineraryId: tripDay.id,
-                  startTime: startTimeISO,
-                  endTime: endTimeISO,
-                  title: item.activity,
-                  description: item.description || '',
+                  tripId,
+                  date: dayDate,
+                  time: item.time,
+                  activity: item.activity,
                   location: item.location || '',
-                  address: '',
-                  category: 'activity',
                   cost: null,
-                  bookingReference: '',
-                  bookingUrl: '',
-                  notes: '',
-                  itemOrder: savedItems.length + 1
+                  notes: item.description || ''
                 }
               });
               savedItems.push(savedItem);
