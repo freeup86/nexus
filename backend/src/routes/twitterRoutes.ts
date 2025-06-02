@@ -169,7 +169,7 @@ router.get('/scheduled', async (req: AuthRequest, res: Response): Promise<void> 
     const tweets = await prisma.tweet.findMany({
       where: { 
         userId,
-        status: 'SCHEDULED'
+        status: 'scheduled'
       },
       orderBy: { scheduledFor: 'asc' },
       take: Number(limit),
@@ -177,7 +177,7 @@ router.get('/scheduled', async (req: AuthRequest, res: Response): Promise<void> 
     });
 
     const total = await prisma.tweet.count({ 
-      where: { userId, status: 'SCHEDULED' } 
+      where: { userId, status: 'scheduled' } 
     });
 
     res.json({ tweets, total });
@@ -196,7 +196,7 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
     const tweets = await prisma.tweet.findMany({
       where: { 
         userId,
-        status: { in: ['PUBLISHED', 'FAILED'] }
+        status: { in: ['published', 'failed'] }
       },
       orderBy: { createdAt: 'desc' },
       take: Number(limit),
@@ -206,7 +206,7 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
     const total = await prisma.tweet.count({ 
       where: { 
         userId,
-        status: { in: ['PUBLISHED', 'FAILED'] }
+        status: { in: ['published', 'failed'] }
       } 
     });
 
@@ -239,7 +239,7 @@ router.put('/tweets/:id',
         return;
       }
 
-      if (tweet.status === 'PUBLISHED') {
+      if (tweet.status === 'published') {
         res.status(400).json({ error: 'Cannot edit published tweets' });
         return;
       }
@@ -249,7 +249,7 @@ router.put('/tweets/:id',
         data: {
           content: content || tweet.content,
           scheduledFor: scheduledFor ? new Date(scheduledFor) : tweet.scheduledFor,
-          status: scheduledFor ? 'SCHEDULED' : tweet.status
+          status: scheduledFor ? 'scheduled' : tweet.status
         }
       });
 
@@ -276,7 +276,7 @@ router.delete('/tweets/:id', async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    if (tweet.status === 'PUBLISHED') {
+    if (tweet.status === 'published') {
       res.status(400).json({ error: 'Cannot delete published tweets' });
       return;
     }
@@ -305,7 +305,7 @@ const publishTweetHandler = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    if (tweet.status === 'PUBLISHED') {
+    if (tweet.status === 'published') {
       res.status(400).json({ error: 'Tweet already published' });
       return;
     }
@@ -385,7 +385,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => 
       return;
     }
 
-    if (tweet.status === 'PUBLISHED') {
+    if (tweet.status === 'published') {
       res.status(400).json({ error: 'Cannot delete published tweets' });
       return;
     }

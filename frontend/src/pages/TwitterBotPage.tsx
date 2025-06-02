@@ -15,7 +15,7 @@ interface Tweet {
   id: string;
   content: string;
   scheduledFor?: string;
-  status: 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'FAILED';
+  status: 'draft' | 'scheduled' | 'published' | 'failed';
   aiGenerated: boolean;
   prompt?: string;
   createdAt: string;
@@ -161,12 +161,12 @@ const TwitterBotPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, string> = {
-      DRAFT: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-      SCHEDULED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-      PUBLISHED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      FAILED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+      draft: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+      scheduled: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      published: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+      failed: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
     };
-    return badges[status] || badges.DRAFT;
+    return badges[status] || badges.draft;
   };
 
   return (
@@ -323,7 +323,7 @@ const TwitterBotPage: React.FC = () => {
                       </p>
                       <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(tweet.status)}`}>
-                          {tweet.status}
+                          {tweet.status.charAt(0).toUpperCase() + tweet.status.slice(1)}
                         </span>
                         {tweet.aiGenerated && (
                           <span className="flex items-center">
