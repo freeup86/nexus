@@ -64,7 +64,6 @@ router.get('/profile', async (req: AuthRequest, res: Response): Promise<void> =>
         lastName: true,
         profilePicture: true,
         role: true,
-        emailVerified: true,
         createdAt: true,
         updatedAt: true,
         _count: {
@@ -395,7 +394,6 @@ router.get('/settings', async (req: AuthRequest, res: Response): Promise<void> =
         lastName: true,
         profilePicture: true,
         role: true,
-        emailVerified: true,
         createdAt: true,
         updatedAt: true
       }
