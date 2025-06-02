@@ -12,6 +12,7 @@ interface LoginResponse {
     lastName?: string;
     role: string;
     profilePicture?: string;
+    createdAt?: string;
   };
 }
 
