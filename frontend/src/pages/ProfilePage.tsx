@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
@@ -41,6 +41,34 @@ const ProfilePage: React.FC = () => {
   });
 
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
+  // Fetch fresh user profile data on component mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await axios.get(`${apiUrl}/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data.user) {
+          updateUser(response.data.user);
+          // Update form data with fresh user data
+          setFormData(prev => ({
+            ...prev,
+            username: response.data.user.username || '',
+            email: response.data.user.email || '',
+            firstName: response.data.user.firstName || '',
+            lastName: response.data.user.lastName || ''
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      }
+    };
+
+    if (token) {
+      fetchProfile();
+    }
+  }, [token, updateUser, apiUrl]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -213,7 +241,14 @@ const ProfilePage: React.FC = () => {
               </h2>
               <p className="text-gray-500 dark:text-gray-400">@{user?.username}</p>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Today'}
+                Member since {user?.createdAt ? (() => {
+                  const date = new Date(user.createdAt);
+                  // Use UTC date to avoid timezone shifts
+                  const year = date.getUTCFullYear();
+                  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                  const day = String(date.getUTCDate()).padStart(2, '0');
+                  return `${month}/${day}/${year}`;
+                })() : 'Today'}
               </p>
             </div>
           </div>
