@@ -242,7 +242,11 @@ const ProfilePage: React.FC = () => {
               <p className="text-gray-500 dark:text-gray-400">@{user?.username}</p>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 Member since {user?.createdAt ? (() => {
+                  console.log('Raw createdAt:', user.createdAt);
                   const date = new Date(user.createdAt);
+                  console.log('Parsed date:', date);
+                  console.log('UTC Date:', date.getUTCDate(), 'Month:', date.getUTCMonth() + 1, 'Year:', date.getUTCFullYear());
+                  console.log('Local Date:', date.getDate(), 'Month:', date.getMonth() + 1, 'Year:', date.getFullYear());
                   // Use UTC date to avoid timezone shifts
                   const year = date.getUTCFullYear();
                   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
