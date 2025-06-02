@@ -145,7 +145,8 @@ router.post('/login',
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
-          profilePicture: user.profilePicture
+          profilePicture: user.profilePicture,
+          createdAt: user.createdAt
         }
       });
     } catch (error) {

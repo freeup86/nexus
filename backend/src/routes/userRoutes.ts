@@ -131,7 +131,8 @@ router.put('/profile',
           firstName: true,
           lastName: true,
           profilePicture: true,
-          role: true
+          role: true,
+          createdAt: true
         }
       });
 
@@ -180,7 +181,8 @@ router.post('/profile/picture', upload.single('picture'), async (req: AuthReques
         firstName: true,
         lastName: true,
         profilePicture: true,
-        role: true
+        role: true,
+        createdAt: true
       }
     });
 
