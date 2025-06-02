@@ -62,9 +62,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await authService.login(username, password);
       const { token, user } = response;
       
-      console.log('Login response - user data:', user);
-      console.log('Login response - createdAt:', user.createdAt);
-      
       setToken(token);
       setUser(user);
       

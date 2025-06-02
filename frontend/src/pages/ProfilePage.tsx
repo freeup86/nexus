@@ -68,7 +68,7 @@ const ProfilePage: React.FC = () => {
     if (token) {
       fetchProfile();
     }
-  }, [token, updateUser, apiUrl]);
+  }, [token]); // Only re-run when token changes, not on every render
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

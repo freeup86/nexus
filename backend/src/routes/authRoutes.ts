@@ -136,13 +136,6 @@ router.post('/login',
         }
       });
 
-      // Debug logging
-      console.log('Login - User from DB:', {
-        username: user.username,
-        createdAt: user.createdAt,
-        createdAtType: typeof user.createdAt
-      });
-
       res.json({
         token,
         user: {
