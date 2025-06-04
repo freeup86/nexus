@@ -629,39 +629,40 @@ router.get('/analytics',
         return;
       }
 
-      const [
-        totalDocuments,
-        documentsByCategory,
-        recentDocuments,
-        upcomingReminders,
-        documentsByMonth
-      ] = await Promise.all([
-        // Total documents
-        prisma.document.count({ where: { userId } }),
-        
-        // Documents by category
-        prisma.documentCategory.groupBy({
+      // Total documents
+      const totalDocuments = await prisma.document.count({ where: { userId } });
+      
+      // Documents by category
+      let documentsByCategory: any[] = [];
+      try {
+        // @ts-ignore
+        documentsByCategory = await prisma.documentCategory.groupBy({
           by: ['categoryId'],
           where: {
             document: { userId }
           },
           _count: true
-        }),
-        
-        // Recent documents
-        prisma.document.findMany({
-          where: { userId },
-          orderBy: { uploadDate: 'desc' },
-          take: 5,
-          select: {
-            id: true,
-            originalName: true,
-            uploadDate: true
-          }
-        }),
-        
-        // Upcoming reminders
-        prisma.documentReminder.findMany({
+        });
+      } catch (error) {
+        console.error('Error fetching documents by category:', error);
+      }
+      
+      // Recent documents
+      const recentDocuments = await prisma.document.findMany({
+        where: { userId },
+        orderBy: { uploadDate: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          originalName: true,
+          uploadDate: true
+        }
+      });
+      
+      // Upcoming reminders
+      let upcomingReminders: any[] = [];
+      try {
+        upcomingReminders = await prisma.documentReminder.findMany({
           where: {
             document: { userId },
             completed: false,
@@ -677,10 +678,15 @@ router.get('/analytics',
               }
             }
           }
-        }),
-        
-        // Documents by month
-        prisma.$queryRaw`
+        });
+      } catch (error) {
+        console.error('Error fetching upcoming reminders:', error);
+      }
+      
+      // Documents by month
+      let documentsByMonth: any[] = [];
+      try {
+        documentsByMonth = await prisma.$queryRaw`
           SELECT 
             DATE_TRUNC('month', "uploadDate") as month,
             COUNT(*) as count
@@ -689,30 +695,43 @@ router.get('/analytics',
           GROUP BY month
           ORDER BY month DESC
           LIMIT 12
-        `
-      ]);
+        `;
+      } catch (error) {
+        console.error('Error fetching documents by month:', error);
+      }
 
       // Get category names
       const categoryIds = documentsByCategory.map(c => c.categoryId);
-      const categories = await prisma.category.findMany({
-        where: { id: { in: categoryIds } }
-      });
+      const categories = categoryIds.length > 0 
+        ? await prisma.category.findMany({
+            where: { id: { in: categoryIds } }
+          })
+        : [];
 
       const categoryMap = new Map(categories.map(c => [c.id, c.name]));
       const categoryCounts = documentsByCategory.map(c => ({
         category: categoryMap.get(c.categoryId) || 'Unknown',
-        count: c._count
+        count: Number(c._count)
       }));
+
+      // Convert BigInt values to numbers in documentsByMonth
+      const serializedDocumentsByMonth = Array.isArray(documentsByMonth) 
+        ? (documentsByMonth as any[]).map(item => ({
+            month: item.month,
+            count: Number(item.count)
+          }))
+        : [];
 
       res.json({
         totalDocuments,
         categoryCounts,
         recentDocuments,
         upcomingReminders,
-        documentsByMonth
+        documentsByMonth: serializedDocumentsByMonth
       });
     } catch (error) {
       console.error('Analytics error:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ error: 'Failed to fetch analytics' });
     }
   }
@@ -834,7 +853,7 @@ async function extractDataWithAI(documentId: string, text: string) {
       ]
     });
 
-    let extractedData = {};
+    let extractedData: any = {};
     try {
       const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
       extractedData = JSON.parse(responseText);
@@ -952,7 +971,7 @@ async function classifyDocument(documentId: string, text: string, filename: stri
       ]
     });
 
-    let classification = {};
+    let classification: any = {};
     try {
       const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
       classification = JSON.parse(responseText);
