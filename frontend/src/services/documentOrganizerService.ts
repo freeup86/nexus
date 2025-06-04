@@ -109,8 +109,21 @@ export interface QuestionResponse {
   totalDocuments: number;
 }
 
+export interface UploadResponse {
+  message: string;
+  documents: { id: string; filename: string; status: string }[];
+  duplicates?: { filename: string; message: string; existingId?: string }[];
+  failed?: { filename: string; message: string }[];
+  summary?: {
+    total: number;
+    successful: number;
+    duplicates: number;
+    failed: number;
+  };
+}
+
 class DocumentOrganizerService {
-  async uploadDocuments(files: File[]): Promise<{ documents: { id: string; filename: string; status: string }[] }> {
+  async uploadDocuments(files: File[]): Promise<UploadResponse> {
     const formData = new FormData();
     files.forEach((file) => {
       formData.append('documents', file);

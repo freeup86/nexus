@@ -76,6 +76,7 @@ const DocumentOrganizerPage: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'documents') {
       loadDocuments();
+      loadAnalytics(); // Always load analytics to show document count
     } else if (activeTab === 'analytics') {
       loadAnalytics();
     }
@@ -85,34 +86,123 @@ const DocumentOrganizerPage: React.FC = () => {
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
+    // Filter out files that are too large (>50MB)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const validFiles: File[] = [];
+    const oversizedFiles: { name: string; size: number }[] = [];
+
+    acceptedFiles.forEach(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        oversizedFiles.push({ name: file.name, size: file.size });
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    // Show warning for oversized files
+    if (oversizedFiles.length > 0) {
+      toast.warning(
+        <div>
+          <p className="font-semibold">{oversizedFiles.length} file(s) too large (max 50MB):</p>
+          <ul className="mt-1 text-sm">
+            {oversizedFiles.slice(0, 3).map((file, idx) => (
+              <li key={idx} className="truncate">
+                • {file.name} ({(file.size / (1024 * 1024)).toFixed(1)}MB)
+              </li>
+            ))}
+            {oversizedFiles.length > 3 && (
+              <li>• and {oversizedFiles.length - 3} more...</li>
+            )}
+          </ul>
+        </div>,
+        { duration: 5000 }
+      );
+    }
+
+    if (validFiles.length === 0) {
+      toast.error('No valid files to upload');
+      return;
+    }
+
     setUploading(true);
-    setUploadProgress({ current: 0, total: acceptedFiles.length });
+    setUploadProgress({ current: 0, total: validFiles.length });
 
     try {
       // For large numbers of files, upload in batches
-      const batchSize = 5; // Reduced batch size to avoid network issues
+      const batchSize = 3; // Further reduced batch size to avoid network issues
       const batches = [];
       
-      for (let i = 0; i < acceptedFiles.length; i += batchSize) {
-        batches.push(acceptedFiles.slice(i, i + batchSize));
+      for (let i = 0; i < validFiles.length; i += batchSize) {
+        batches.push(validFiles.slice(i, i + batchSize));
       }
 
       let totalUploaded = 0;
+      let totalDuplicates = 0;
+      let totalFailed = 0;
+      const duplicateFiles: string[] = [];
       
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        const result = await documentOrganizerService.uploadDocuments(batch);
-        totalUploaded += result.documents.length;
-        setUploadProgress({ current: totalUploaded, total: acceptedFiles.length });
         
-        // Add a small delay between batches to avoid overwhelming the server
+        try {
+          const result = await documentOrganizerService.uploadDocuments(batch);
+          
+          totalUploaded += result.documents.length;
+          
+          if (result.duplicates) {
+            totalDuplicates += result.duplicates.length;
+            duplicateFiles.push(...result.duplicates.map(d => d.filename));
+          }
+          
+          if (result.failed) {
+            totalFailed += result.failed.length;
+          }
+        } catch (batchError: any) {
+          console.error(`Batch ${i + 1} failed:`, batchError);
+          // Count all files in this batch as failed
+          totalFailed += batch.length;
+          
+          // If it's a network error, try to continue with remaining batches
+          if (batchError.code !== 'ERR_NETWORK') {
+            // For non-network errors, you might want to stop
+            toast.error(`Batch ${i + 1} failed: ${batchError.message}`);
+          }
+        }
+        
+        setUploadProgress({ 
+          current: totalUploaded + totalDuplicates + totalFailed, 
+          total: validFiles.length 
+        });
+        
+        // Add a longer delay between batches to avoid overwhelming the server
         if (i < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Increased to 1 second
         }
       }
 
-      toast.success(`Successfully uploaded ${totalUploaded} document(s)`);
+      // Show appropriate messages
+      if (totalUploaded > 0) {
+        toast.success(`Successfully uploaded ${totalUploaded} document(s)`);
+      }
+      
+      // Only show error for failed uploads (not duplicates)
+      if (totalFailed > 0) {
+        toast.error(`${totalFailed} file(s) failed to upload`);
+      }
+      
+      // Log summary to console for debugging (including duplicates)
+      if (oversizedFiles.length > 0 || totalDuplicates > 0 || totalFailed > 0) {
+        const summaryParts = [];
+        if (totalUploaded > 0) summaryParts.push(`${totalUploaded} uploaded`);
+        if (oversizedFiles.length > 0) summaryParts.push(`${oversizedFiles.length} too large`);
+        if (totalDuplicates > 0) summaryParts.push(`${totalDuplicates} duplicates silently skipped`);
+        if (totalFailed > 0) summaryParts.push(`${totalFailed} failed`);
+        
+        console.log('Upload summary:', summaryParts.join(', '));
+      }
+      
       loadDocuments();
+      loadAnalytics(); // Refresh the document count
     } catch (error: any) {
       console.error('Upload failed:', error);
       let errorMessage = 'Failed to upload documents';
@@ -177,6 +267,7 @@ const DocumentOrganizerPage: React.FC = () => {
       await documentOrganizerService.deleteDocument(document.id);
       toast.success('Document deleted');
       loadDocuments();
+      loadAnalytics(); // Refresh the document count
       setSelectedDocument(null);
     } catch (error) {
       console.error('Delete failed:', error);
@@ -202,12 +293,26 @@ const DocumentOrganizerPage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Document Organizer
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Upload, organize, and search all your documents with AI-powered insights
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Document Organizer
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Upload, organize, and search all your documents with AI-powered insights
+            </p>
+          </div>
+          {analytics && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow px-6 py-4">
+              <div className="text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Documents</p>
+                <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+                  {analytics.totalDocuments}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}

@@ -10,6 +10,7 @@ import Tesseract from 'tesseract.js';
 import pdf from 'pdf-parse';
 import sharp from 'sharp';
 import Anthropic from '@anthropic-ai/sdk';
+import crypto from 'crypto';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -18,6 +19,14 @@ const prisma = new PrismaClient();
 const anthropic = process.env.ANTHROPIC_API_KEY 
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
+
+// Calculate SHA-256 hash of a file
+async function calculateFileHash(filePath: string): Promise<string> {
+  const fileBuffer = await fs.readFile(filePath);
+  const hashSum = crypto.createHash('sha256');
+  hashSum.update(fileBuffer);
+  return hashSum.digest('hex');
+}
 
 // Multer configuration for document uploads
 const storage = multer.diskStorage({
@@ -61,10 +70,31 @@ const validateRequest = (req: AuthRequest, res: Response, next: any) => {
 
 // Upload documents
 router.post('/upload',
-  upload.array('documents', 10),
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  (req: AuthRequest, res: Response, next: any) => {
     // Set a longer timeout for file uploads
     req.setTimeout(5 * 60 * 1000); // 5 minutes
+    
+    upload.array('documents', 10)(req, res, (err: any) => {
+      if (err) {
+        // Handle multer errors
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          res.status(413).json({ 
+            error: 'One or more files exceed the 50MB size limit',
+            details: err.message 
+          });
+          return;
+        }
+        console.error('Multer error:', err);
+        res.status(400).json({ 
+          error: 'File upload error',
+          details: err.message 
+        });
+        return;
+      }
+      next();
+    });
+  },
+  async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const userId = req.user?.userId;
       if (!userId) {
@@ -78,34 +108,105 @@ router.post('/upload',
         return;
       }
 
-      const documents = await Promise.all(
+      const uploadResults = await Promise.all(
         files.map(async (file) => {
-          const document = await prisma.document.create({
-            data: {
-              userId,
-              filename: file.filename,
-              originalName: file.originalname,
-              filePath: file.path,
-              fileType: file.mimetype,
-              fileSize: file.size,
-              status: 'processing'
+          try {
+            // Calculate file hash
+            const fileHash = await calculateFileHash(file.path);
+            
+            // Check for duplicates by hash (if fileHash column exists)
+            // For now, check by name and size as a fallback
+            const existingDocument = await prisma.document.findFirst({
+              where: {
+                userId,
+                originalName: file.originalname,
+                fileSize: file.size
+              }
+            });
+
+            if (existingDocument) {
+              // Delete the uploaded file since it's a duplicate
+              await fs.unlink(file.path).catch(() => {});
+              
+              return {
+                success: false,
+                filename: file.originalname,
+                message: 'Duplicate file already exists',
+                existingId: existingDocument.id
+              };
             }
-          });
 
-          // Process document asynchronously
-          processDocument(document.id, file).catch(console.error);
+            const document = await prisma.document.create({
+              data: {
+                userId,
+                filename: file.filename,
+                originalName: file.originalname,
+                filePath: file.path,
+                fileType: file.mimetype,
+                fileSize: file.size,
+                status: 'processing'
+              }
+            });
 
-          return document;
+            // Process document asynchronously
+            processDocument(document.id, file).catch(console.error);
+
+            return {
+              success: true,
+              document: {
+                id: document.id,
+                filename: document.originalName,
+                status: document.status
+              }
+            };
+          } catch (error) {
+            console.error('Error processing file:', file.originalname, error);
+            // Clean up the file if something went wrong
+            await fs.unlink(file.path).catch(() => {});
+            
+            return {
+              success: false,
+              filename: file.originalname,
+              message: 'Failed to process file'
+            };
+          }
         })
       );
 
+      const successfulUploads = uploadResults.filter(r => r.success);
+      const duplicates = uploadResults.filter(r => !r.success && r.message?.includes('Duplicate'));
+      const failed = uploadResults.filter(r => !r.success && !r.message?.includes('Duplicate'));
+
+      // Prepare response message
+      let message = '';
+      if (successfulUploads.length > 0) {
+        message = `Successfully uploaded ${successfulUploads.length} document(s)`;
+      }
+      if (duplicates.length > 0) {
+        message += (message ? '. ' : '') + `${duplicates.length} duplicate(s) skipped`;
+      }
+      if (failed.length > 0) {
+        message += (message ? '. ' : '') + `${failed.length} file(s) failed`;
+      }
+
       res.json({ 
-        message: 'Documents uploaded successfully',
-        documents: documents.map(doc => ({
-          id: doc.id,
-          filename: doc.originalName,
-          status: doc.status
-        }))
+        message: message || 'No documents processed',
+        documents: successfulUploads.map(r => r.document).filter(Boolean),
+        duplicates: duplicates.map(r => ({
+          filename: r.filename,
+          message: r.message,
+          existingId: r.existingId
+        })),
+        failed: failed.map(r => ({
+          filename: r.filename,
+          message: r.message
+        })),
+        summary: {
+          total: files.length,
+          successful: successfulUploads.length,
+          duplicates: duplicates.length,
+          failed: failed.length
+        }
       });
     } catch (error) {
       console.error('Upload error:', error);

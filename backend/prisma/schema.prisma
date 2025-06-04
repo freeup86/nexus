@@ -403,6 +403,7 @@ model Document {
   filePath      String
   fileType      String
   fileSize      Int
+  fileHash      String?  // SHA-256 hash of file content for duplicate detection
   uploadDate    DateTime @default(now())
   processedDate DateTime?
   status        String   @default("processing") // processing, completed, failed
@@ -421,6 +422,7 @@ model Document {
   @@index([userId])
   @@index([status])
   @@index([uploadDate])
+  @@index([userId, fileHash])
 }
 
 model DocumentData {
