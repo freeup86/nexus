@@ -376,7 +376,9 @@ router.post('/extract', upload.single('file'), async (req: AuthRequest, res: Res
           extractedText: updatedExtraction.extractedText,
           processingTime: updatedExtraction.processingTime,
           status: 'COMPLETED',
-          metadata: JSON.parse(updatedExtraction.metadata || '{}'),
+          metadata: typeof updatedExtraction.metadata === 'string' 
+            ? JSON.parse(updatedExtraction.metadata) 
+            : updatedExtraction.metadata || {},
           createdAt: updatedExtraction.createdAt
         }
       });
@@ -444,7 +446,9 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
         return {
           ...ext,
           status,
-          metadata: ext.metadata ? JSON.parse(ext.metadata) : null
+          metadata: ext.metadata 
+            ? (typeof ext.metadata === 'string' ? JSON.parse(ext.metadata) : ext.metadata)
+            : null
         };
       }),
       total,
@@ -482,7 +486,9 @@ router.get('/extraction/:id', async (req: AuthRequest, res: Response): Promise<v
       extraction: {
         ...extraction,
         status,
-        metadata: extraction.metadata ? JSON.parse(extraction.metadata) : null
+        metadata: extraction.metadata 
+          ? (typeof extraction.metadata === 'string' ? JSON.parse(extraction.metadata) : extraction.metadata)
+          : null
       }
     });
   } catch (error) {

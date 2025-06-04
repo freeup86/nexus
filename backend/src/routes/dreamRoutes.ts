@@ -67,7 +67,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Get a specific dream
-router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
+router.get('/:id', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
@@ -81,7 +81,8 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     if (!dream) {
-      return res.status(404).json({ error: 'Dream not found' });
+      res.status(404).json({ error: 'Dream not found' });
+      return;
     }
 
     res.json(dream);
@@ -237,7 +238,7 @@ Format your response as JSON with the following structure:
 });
 
 // Update a dream
-router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
+router.put('/:id', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
@@ -249,7 +250,8 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     if (!existingDream) {
-      return res.status(404).json({ error: 'Dream not found' });
+      res.status(404).json({ error: 'Dream not found' });
+      return;
     }
 
     // Update dream and tags in transaction
@@ -306,7 +308,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Delete a dream
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
+router.delete('/:id', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
@@ -317,7 +319,8 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     if (!dream) {
-      return res.status(404).json({ error: 'Dream not found' });
+      res.status(404).json({ error: 'Dream not found' });
+      return;
     }
 
     await prisma.dream.delete({
@@ -349,7 +352,7 @@ router.get('/patterns/all', authenticateToken, async (req: AuthRequest, res) => 
 });
 
 // Analyze patterns across all dreams
-router.post('/patterns/analyze', authenticateToken, async (req: AuthRequest, res) => {
+router.post('/patterns/analyze', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
   try {
     const userId = req.user!.userId;
 
@@ -361,10 +364,11 @@ router.post('/patterns/analyze', authenticateToken, async (req: AuthRequest, res
     });
 
     if (dreams.length < 3) {
-      return res.json({ 
+      res.json({ 
         message: 'Need at least 3 dreams to analyze patterns',
         patterns: [] 
       });
+      return;
     }
 
     // Analyze recurring themes

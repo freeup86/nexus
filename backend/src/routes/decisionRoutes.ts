@@ -68,20 +68,7 @@ router.get('/:id',
       const { id } = req.params;
 
       const decision = await prisma.decision.findFirst({
-        where: { id, userId },
-        include: {
-          criteria: {
-            orderBy: { criteriaOrder: 'asc' }
-          },
-          options: {
-            orderBy: { optionOrder: 'asc' }
-          },
-          scores: true,
-          analyses: {
-            orderBy: { createdAt: 'desc' },
-            take: 1
-          }
-        }
+        where: { id, userId }
       });
 
       if (!decision) {
@@ -156,20 +143,19 @@ router.post('/:id/criteria',
         return;
       }
 
-      // Create criteria
-      const createdCriteria = await prisma.decisionCriteria.createMany({
-        data: criteria.map((c: any, index: number) => ({
-          decisionId: id,
-          name: c.name,
-          description: c.description,
-          weight: c.weight,
-          criteriaOrder: index
-        }))
+      // Update decision with new criteria
+      const currentCriteria = decision.criteria as any[] || [];
+      const updatedDecision = await prisma.decision.update({
+        where: { id },
+        data: {
+          criteria: [...currentCriteria, ...criteria]
+        }
       });
 
       res.status(201).json({ 
         message: 'Criteria added successfully',
-        count: createdCriteria.count 
+        count: criteria.length,
+        decision: updatedDecision
       });
     } catch (error) {
       console.error('Add criteria error:', error);
@@ -203,19 +189,19 @@ router.post('/:id/options',
         return;
       }
 
-      // Create options
-      const createdOptions = await prisma.decisionOption.createMany({
-        data: options.map((o: any, index: number) => ({
-          decisionId: id,
-          name: o.name,
-          description: o.description,
-          optionOrder: index
-        }))
+      // Update decision with new options
+      const currentOptions = decision.options as any[] || [];
+      const updatedDecision = await prisma.decision.update({
+        where: { id },
+        data: {
+          options: [...currentOptions, ...options]
+        }
       });
 
       res.status(201).json({ 
         message: 'Options added successfully',
-        count: createdOptions.count 
+        count: options.length,
+        decision: updatedDecision
       });
     } catch (error) {
       console.error('Add options error:', error);
@@ -250,24 +236,21 @@ router.post('/:id/scores',
         return;
       }
 
-      // Delete existing scores and create new ones (simpler approach)
-      await prisma.decisionScore.deleteMany({
-        where: { decisionId: id }
+      // Store scores in the analysis field as part of the decision
+      const updatedDecision = await prisma.decision.update({
+        where: { id },
+        data: {
+          analysis: {
+            ...(decision.analysis as any || {}),
+            scores: scores
+          }
+        }
       });
 
-      // Create new scores
-      const scoreData = scores.map((s: any) => ({
-        decisionId: id,
-        optionId: s.optionId,
-        criteriaId: s.criteriaId,
-        score: s.score
-      }));
-
-      await prisma.decisionScore.createMany({
-        data: scoreData
+      res.json({ 
+        message: 'Scores updated successfully',
+        decision: updatedDecision
       });
-
-      res.json({ message: 'Scores updated successfully' });
     } catch (error) {
       console.error('Update scores error:', error);
       res.status(500).json({ error: 'Failed to update scores' });
@@ -286,12 +269,7 @@ router.post('/:id/analyze',
 
       // Get decision with all data
       const decision = await prisma.decision.findFirst({
-        where: { id, userId },
-        include: {
-          criteria: true,
-          options: true,
-          scores: true
-        }
+        where: { id, userId }
       });
 
       if (!decision) {
@@ -305,22 +283,26 @@ router.post('/:id/analyze',
       // Generate AI recommendations
       const aiRecommendation = await generateAIRecommendation(decision, results);
 
-      // Save analysis
-      const analysis = await prisma.decisionAnalysis.create({
+      // Save analysis in the decision
+      const updatedDecision = await prisma.decision.update({
+        where: { id },
         data: {
-          decisionId: id,
-          analysisType: 'mcda',
-          results: JSON.stringify(results),
-          aiRecommendation: aiRecommendation.recommendation,
-          confidenceScore: aiRecommendation.confidence
+          analysis: {
+            ...(decision.analysis as any || {}),
+            mcdaResults: results,
+            aiRecommendation: aiRecommendation.recommendation,
+            confidenceScore: aiRecommendation.confidence,
+            analyzedAt: new Date()
+          },
+          recommendation: aiRecommendation.recommendation
         }
       });
 
       res.json({ 
         analysis: {
-          ...analysis,
-          results: results,
-          recommendation: aiRecommendation
+          mcdaResults: results,
+          aiRecommendation: aiRecommendation,
+          decision: updatedDecision
         }
       });
     } catch (error) {
@@ -358,28 +340,35 @@ router.get('/user/:userId',
 
 // Helper function: Calculate Weighted Sum Model
 function calculateWSM(decision: any) {
-  const { options, criteria, scores } = decision;
+  const options = decision.options as any[] || [];
+  const criteria = decision.criteria as any[] || [];
+  const scores = (decision.analysis as any)?.scores || [];
   
   // Create score matrix
   const scoreMatrix: { [key: string]: { [key: string]: number } } = {};
   scores.forEach((s: any) => {
-    if (!scoreMatrix[s.optionId]) scoreMatrix[s.optionId] = {};
-    scoreMatrix[s.optionId][s.criteriaId] = s.score;
+    const optionKey = s.optionId || s.optionName;
+    const criteriaKey = s.criteriaId || s.criteriaName;
+    if (!scoreMatrix[optionKey]) scoreMatrix[optionKey] = {};
+    scoreMatrix[optionKey][criteriaKey] = s.score;
   });
 
   // Calculate weighted scores for each option
-  const optionScores = options.map((option: any) => {
+  const optionScores = options.map((option: any, optionIndex: number) => {
     let totalScore = 0;
+    const optionKey = option.id || option.name || `option_${optionIndex}`;
     let weightedScore = 0;
 
-    criteria.forEach((criterion: any) => {
-      const score = scoreMatrix[option.id]?.[criterion.id] || 0;
-      weightedScore += score * criterion.weight;
+    criteria.forEach((criterion: any, criteriaIndex: number) => {
+      const criteriaKey = criterion.id || criterion.name || `criteria_${criteriaIndex}`;
+      const score = scoreMatrix[optionKey]?.[criteriaKey] || 0;
+      const weight = criterion.weight || 1;
+      weightedScore += score * weight;
       totalScore += score;
     });
 
     return {
-      optionId: option.id,
+      optionId: option.id || optionKey,
       optionName: option.name,
       totalScore,
       weightedScore,
@@ -391,12 +380,13 @@ function calculateWSM(decision: any) {
   optionScores.sort((a: any, b: any) => b.weightedScore - a.weightedScore);
 
   // Calculate sensitivity analysis
-  const sensitivity = criteria.map((criterion: any) => {
-    const impact = calculateCriterionImpact(criterion, options, scoreMatrix);
+  const sensitivity = criteria.map((criterion: any, index: number) => {
+    const criterionKey = criterion.id || criterion.name || `criteria_${index}`;
+    const impact = calculateCriterionImpact(criterion, criterionKey, options, scoreMatrix);
     return {
-      criterionId: criterion.id,
+      criterionId: criterion.id || criterionKey,
       criterionName: criterion.name,
-      weight: criterion.weight,
+      weight: criterion.weight || 1,
       impact
     };
   });
@@ -409,10 +399,13 @@ function calculateWSM(decision: any) {
 }
 
 // Helper function: Calculate criterion impact
-function calculateCriterionImpact(criterion: any, options: any[], scoreMatrix: any) {
+function calculateCriterionImpact(criterion: any, criterionKey: string, options: any[], scoreMatrix: any) {
   // Calculate how much each criterion affects the final ranking
   let totalVariance = 0;
-  const scores = options.map(o => scoreMatrix[o.id]?.[criterion.id] || 0);
+  const scores = options.map((o, index) => {
+    const optionKey = o.id || o.name || `option_${index}`;
+    return scoreMatrix[optionKey]?.[criterionKey] || 0;
+  });
   const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
   
   scores.forEach(score => {

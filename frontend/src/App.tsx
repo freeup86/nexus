@@ -15,6 +15,7 @@ import DIYProjectsPage from './pages/DIYProjectsPage';
 import TravelPlannerPage from './pages/TravelPlannerPage';
 import DocumentSummarizerPage from './pages/DocumentSummarizerPage';
 import DreamJournalPage from './pages/DreamJournalPage';
+import DocumentOrganizerPage from './pages/DocumentOrganizerPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import { ApiTestPage } from './pages/ApiTestPage';
@@ -62,6 +63,7 @@ function App() {
               <Route path="travel-planner" element={<TravelPlannerPage />} />
               <Route path="document-summarizer" element={<DocumentSummarizerPage />} />
               <Route path="dream-journal" element={<DreamJournalPage />} />
+              <Route path="document-organizer" element={<DocumentOrganizerPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="api-test" element={<ApiTestPage />} />

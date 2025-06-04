@@ -13,7 +13,8 @@ import {
   WrenchScrewdriverIcon,
   GlobeAltIcon,
   SparklesIcon,
-  MoonIcon
+  MoonIcon,
+  FolderIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Text Extractor', href: '/text-extractor', icon: DocumentTextIcon },
   { name: 'Contract Analyzer', href: '/contract-analyzer', icon: DocumentMagnifyingGlassIcon },
   { name: 'Document Summarizer', href: '/document-summarizer', icon: SparklesIcon },
+  { name: 'Document Organizer', href: '/document-organizer', icon: FolderIcon },
   { name: 'Decision Support', href: '/decision-support', icon: ScaleIcon },
   { name: 'DIY Projects', href: '/diy-projects', icon: WrenchScrewdriverIcon },
   { name: 'Travel Planner', href: '/travel-planner', icon: GlobeAltIcon },

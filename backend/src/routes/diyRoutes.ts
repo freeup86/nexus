@@ -185,18 +185,18 @@ router.get('/projects/:id',
 
       // Recalculate progress based on actual milestone completion
       const actualProgress = await recalculateProjectProgress(project.id);
-      if (project.progressPercentage !== actualProgress) {
+      if (project.progress !== actualProgress) {
         // Update the database with correct progress
         await prisma.dIYProject.update({
           where: { id: project.id },
           data: {
-            progressPercentage: actualProgress,
+            progress: actualProgress,
             status: actualProgress === 100 ? 'completed' : 
                    actualProgress > 0 ? 'active' : 
                    project.status === 'completed' ? 'active' : project.status
           }
         });
-        project.progressPercentage = actualProgress;
+        project.progress = actualProgress;
       }
 
       res.json({ project });
@@ -381,11 +381,11 @@ router.post('/projects/:id/analyze',
       // Generate AI project plan
       const projectPlan = await generateAIProjectPlan(project);
 
-      // Update project with AI plan
+      // Update project with AI plan in the steps field
       await prisma.dIYProject.update({
         where: { id },
         data: {
-          aiProjectPlan: JSON.stringify(projectPlan)
+          steps: projectPlan
         }
       });
 
@@ -592,7 +592,7 @@ router.post('/projects/:id/progress',
         await prisma.dIYProject.update({
           where: { id },
           data: {
-            progressPercentage,
+            progress: progressPercentage,
             status: progressPercentage === 100 ? 'completed' : 'active',
             completionDate: progressPercentage === 100 ? new Date() : null
           }
@@ -637,6 +637,20 @@ router.post('/community/share',
         return;
       }
 
+      // Community sharing functionality not implemented yet
+      // For now, just mark the project as public
+      const updatedProject = await prisma.dIYProject.update({
+        where: { id: projectId },
+        data: { isPublic: true }
+      });
+      
+      res.json({ 
+        message: 'Project shared to community',
+        project: updatedProject
+      });
+      return;
+      
+      /* TODO: Implement community shares model
       // Check if already shared
       const existingShare = await prisma.communityShares.findFirst({
         where: { projectId, userId }
@@ -669,6 +683,7 @@ router.post('/community/share',
         });
         res.status(201).json({ share });
       }
+      */
     } catch (error) {
       console.error('Share project error:', error);
       res.status(500).json({ error: 'Failed to share project' });
@@ -1220,7 +1235,7 @@ router.post('/projects/:id/milestones',
       await prisma.dIYProject.update({
         where: { id },
         data: {
-          progressPercentage: actualProgress,
+          progress: actualProgress,
           status: actualProgress === 100 ? 'completed' : 
                  actualProgress > 0 ? 'active' : project.status
         }

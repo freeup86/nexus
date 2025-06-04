@@ -340,7 +340,7 @@ router.get('/trips/:tripId/itinerary',
 
       const itineraryItems = await prisma.itineraryItem.findMany({
         where: { tripId },
-        orderBy: { startTime: 'asc' }
+        orderBy: { date: 'asc' }
       });
 
       res.json({ itinerary: itineraryItems });
@@ -772,7 +772,7 @@ router.get('/trips/:tripId/documents',
 
       const documents = await prisma.tripDocument.findMany({
         where: { tripId },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { uploadedAt: 'desc' }
       });
 
       res.json({ documents });

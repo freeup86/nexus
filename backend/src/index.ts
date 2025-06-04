@@ -19,6 +19,7 @@ import diyRoutes from './routes/diyRoutes';
 import travelRoutes from './routes/travelRoutes';
 import documentRoutes from './routes/documentRoutes';
 import dreamRoutes from './routes/dreamRoutes';
+import documentOrganizerRoutes from './routes/documentOrganizerRoutes';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -135,6 +136,7 @@ app.use('/api/diy', authenticateToken, diyRoutes);
 app.use('/api/travel', authenticateToken, travelRoutes);
 app.use('/api/documents', authenticateTokenSimple, documentRoutes);
 app.use('/api/dreams', authenticateToken, dreamRoutes);
+app.use('/api/document-organizer', authenticateToken, documentOrganizerRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

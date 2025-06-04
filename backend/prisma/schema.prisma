@@ -35,6 +35,8 @@ model User {
   trips           Trip[]
   dreams          Dream[]
   dreamPatterns   DreamPattern[]
+  documents       Document[]
+  apiKeys         ApiKey[]
 }
 
 model Session {
@@ -44,6 +46,23 @@ model Session {
   expiresAt DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  key         String    @unique
+  service     String    // 'openai', 'anthropic', 'twitter', etc.
+  lastUsed    DateTime?
+  usageCount  Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([service])
 }
 
 model Tweet {
@@ -373,4 +392,123 @@ model DreamPattern {
   @@unique([userId, patternType, patternKey])
   @@index([userId])
   @@index([patternType])
+}
+
+// Document Organizer Models
+model Document {
+  id            String   @id @default(cuid())
+  userId        String
+  filename      String
+  originalName  String
+  filePath      String
+  fileType      String
+  fileSize      Int
+  uploadDate    DateTime @default(now())
+  processedDate DateTime?
+  status        String   @default("processing") // processing, completed, failed
+  
+  // Extracted metadata
+  extractedText String?  @db.Text
+  ocrConfidence Float?
+  
+  // Relationships
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  extractedData DocumentData[]
+  categories    DocumentCategory[]
+  tags          DocumentTag[]
+  reminders     DocumentReminder[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([uploadDate])
+}
+
+model DocumentData {
+  id           String   @id @default(cuid())
+  documentId   String
+  fieldName    String   // e.g., 'vendor', 'amount', 'date', 'invoice_number'
+  fieldValue   String
+  fieldType    String   // 'text', 'number', 'date', 'currency'
+  confidence   Float    @default(1.0)
+  
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@unique([documentId, fieldName])
+  @@index([documentId])
+  @@index([fieldName])
+}
+
+model Category {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  parentId     String?
+  userId       String?  // null for system categories, userId for custom categories
+  isSystem     Boolean  @default(false)
+  icon         String?
+  color        String?
+  
+  parent       Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     Category[] @relation("CategoryHierarchy")
+  documents    DocumentCategory[]
+  
+  @@unique([name, userId])
+  @@index([userId])
+  @@index([parentId])
+}
+
+model DocumentCategory {
+  id           String   @id @default(cuid())
+  documentId   String
+  categoryId   String
+  confidence   Float    @default(1.0) // For AI-assigned categories
+  isManual     Boolean  @default(false)
+  
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@unique([documentId, categoryId])
+  @@index([documentId])
+  @@index([categoryId])
+}
+
+model Tag {
+  id           String   @id @default(cuid())
+  name         String
+  userId       String
+  
+  documents    DocumentTag[]
+  
+  @@unique([name, userId])
+  @@index([userId])
+}
+
+model DocumentTag {
+  id           String   @id @default(cuid())
+  documentId   String
+  tagId        String
+  
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag          Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@unique([documentId, tagId])
+  @@index([documentId])
+  @@index([tagId])
+}
+
+model DocumentReminder {
+  id           String   @id @default(cuid())
+  documentId   String
+  reminderDate DateTime
+  reminderType String   // 'expiration', 'renewal', 'payment_due', 'custom'
+  description  String
+  completed    Boolean  @default(false)
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@index([documentId])
+  @@index([reminderDate])
+  @@index([completed])
 }

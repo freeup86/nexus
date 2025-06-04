@@ -11,7 +11,8 @@ import {
   ScaleIcon,
   WrenchScrewdriverIcon,
   GlobeAltIcon,
-  MoonIcon
+  MoonIcon,
+  FolderIcon
 } from '@heroicons/react/24/outline';
 
 const utilities = [
@@ -70,6 +71,14 @@ const utilities = [
     href: '/dream-journal',
     color: 'bg-purple-600',
     stats: { label: 'Dreams', value: '0' }
+  },
+  {
+    name: 'Document Organizer',
+    description: 'Upload, organize, and search documents with AI-powered insights',
+    icon: FolderIcon,
+    href: '/document-organizer',
+    color: 'bg-yellow-500',
+    stats: { label: 'Documents', value: '0' }
   }
 ];
 

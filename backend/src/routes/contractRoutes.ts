@@ -350,10 +350,13 @@ router.get('/contract/:id', async (req: AuthRequest, res): Promise<void> => {
       },
       analysis: {
         summary: contract.summary || '',
-        keyTerms: contract.keyTerms ? JSON.parse(contract.keyTerms) : [],
-        risks: contract.risks ? JSON.parse(contract.risks) : [],
-        obligations: contract.obligations ? JSON.parse(contract.obligations) : [],
-        importantDates: contract.dates ? JSON.parse(contract.dates) : [],
+        keyTerms: contract.keyTerms || [],
+        risks: contract.risks || [],
+        obligations: contract.obligations || [],
+        importantDates: [
+          ...(contract.startDate ? [{ type: 'Start Date', date: contract.startDate }] : []),
+          ...(contract.endDate ? [{ type: 'End Date', date: contract.endDate }] : [])
+        ],
         plainEnglish: contract.summary || '',
         aiModel: 'gpt-4',
         processingTime: 0,
