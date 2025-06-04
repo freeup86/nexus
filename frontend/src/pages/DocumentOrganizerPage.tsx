@@ -101,7 +101,7 @@ const DocumentOrganizerPage: React.FC = () => {
 
     // Show warning for oversized files
     if (oversizedFiles.length > 0) {
-      toast.warning(
+      toast(
         <div>
           <p className="font-semibold">{oversizedFiles.length} file(s) too large (max 50MB):</p>
           <ul className="mt-1 text-sm">
@@ -115,7 +115,14 @@ const DocumentOrganizerPage: React.FC = () => {
             )}
           </ul>
         </div>,
-        { duration: 5000 }
+        { 
+          duration: 5000,
+          icon: '⚠️',
+          style: {
+            background: '#FEF3C7',
+            color: '#92400E',
+          }
+        }
       );
     }
 
