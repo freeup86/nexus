@@ -102,22 +102,24 @@ const DocumentOrganizerPage: React.FC = () => {
     // Show warning for oversized files
     if (oversizedFiles.length > 0) {
       toast(
-        <div>
-          <p className="font-semibold">{oversizedFiles.length} file(s) too large (max 50MB):</p>
-          <ul className="mt-1 text-sm">
-            {oversizedFiles.slice(0, 3).map((file, idx) => (
-              <li key={idx} className="truncate">
-                • {file.name} ({(file.size / (1024 * 1024)).toFixed(1)}MB)
-              </li>
-            ))}
-            {oversizedFiles.length > 3 && (
-              <li>• and {oversizedFiles.length - 3} more...</li>
-            )}
-          </ul>
+        <div className="flex items-start">
+          <span className="text-2xl mr-2">⚠️</span>
+          <div>
+            <p className="font-semibold">{oversizedFiles.length} file(s) too large (max 50MB):</p>
+            <ul className="mt-1 text-sm">
+              {oversizedFiles.slice(0, 3).map((file, idx) => (
+                <li key={idx} className="truncate">
+                  • {file.name} ({(file.size / (1024 * 1024)).toFixed(1)}MB)
+                </li>
+              ))}
+              {oversizedFiles.length > 3 && (
+                <li>• and {oversizedFiles.length - 3} more...</li>
+              )}
+            </ul>
+          </div>
         </div>,
         { 
           duration: 5000,
-          icon: '⚠️',
           style: {
             background: '#FEF3C7',
             color: '#92400E',
