@@ -63,6 +63,8 @@ const validateRequest = (req: AuthRequest, res: Response, next: any) => {
 router.post('/upload',
   upload.array('documents', 10),
   async (req: AuthRequest, res: Response): Promise<void> => {
+    // Set a longer timeout for file uploads
+    req.setTimeout(5 * 60 * 1000); // 5 minutes
     try {
       const userId = req.user?.userId;
       if (!userId) {

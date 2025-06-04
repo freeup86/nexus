@@ -90,7 +90,7 @@ const DocumentOrganizerPage: React.FC = () => {
 
     try {
       // For large numbers of files, upload in batches
-      const batchSize = 10;
+      const batchSize = 5; // Reduced batch size to avoid network issues
       const batches = [];
       
       for (let i = 0; i < acceptedFiles.length; i += batchSize) {
@@ -99,17 +99,33 @@ const DocumentOrganizerPage: React.FC = () => {
 
       let totalUploaded = 0;
       
-      for (const batch of batches) {
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
         const result = await documentOrganizerService.uploadDocuments(batch);
         totalUploaded += result.documents.length;
         setUploadProgress({ current: totalUploaded, total: acceptedFiles.length });
+        
+        // Add a small delay between batches to avoid overwhelming the server
+        if (i < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
 
       toast.success(`Successfully uploaded ${totalUploaded} document(s)`);
       loadDocuments();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload failed:', error);
-      toast.error('Failed to upload documents');
+      let errorMessage = 'Failed to upload documents';
+      
+      if (error.code === 'ERR_NETWORK') {
+        errorMessage = 'Network error: Files may be too large or connection was interrupted';
+      } else if (error.response?.status === 413) {
+        errorMessage = 'Files are too large. Maximum file size is 50MB';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
       setUploadProgress(null);
