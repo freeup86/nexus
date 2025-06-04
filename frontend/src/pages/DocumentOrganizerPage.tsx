@@ -16,10 +16,11 @@ import {
   XMarkIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
-  ClockIcon
+  ClockIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import { documentOrganizerService, Document, DocumentsResponse, Analytics } from '../services/documentOrganizerService';
+import { documentOrganizerService, Document, DocumentsResponse, Analytics, QuestionResponse } from '../services/documentOrganizerService';
 import { debugAuth } from '../utils/debugAuth';
 import FolderUpload from '../components/FolderUpload';
 
@@ -33,8 +34,11 @@ const DocumentOrganizerPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [activeTab, setActiveTab] = useState<'documents' | 'analytics' | 'reminders'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'analytics' | 'reminders' | 'questions'>('documents');
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [questionInput, setQuestionInput] = useState('');
+  const [questionResponse, setQuestionResponse] = useState<QuestionResponse | null>(null);
+  const [askingQuestion, setAskingQuestion] = useState(false);
 
   // Load documents
   const loadDocuments = useCallback(async () => {
@@ -133,6 +137,22 @@ const DocumentOrganizerPage: React.FC = () => {
     loadDocuments();
   };
 
+  // Ask question about documents
+  const handleAskQuestion = async () => {
+    if (!questionInput.trim()) return;
+
+    setAskingQuestion(true);
+    try {
+      const response = await documentOrganizerService.askQuestion(questionInput);
+      setQuestionResponse(response);
+    } catch (error: any) {
+      console.error('Failed to ask question:', error);
+      toast.error(error.response?.data?.error || 'Failed to process question');
+    } finally {
+      setAskingQuestion(false);
+    }
+  };
+
   // Delete document
   const handleDelete = async (document: Document) => {
     if (!window.confirm('Are you sure you want to delete this document?')) return;
@@ -214,6 +234,17 @@ const DocumentOrganizerPage: React.FC = () => {
                 {analytics.upcomingReminders.length}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setActiveTab('questions')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'questions'
+                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            <QuestionMarkCircleIcon className="h-5 w-5 inline-block mr-2" />
+            Ask Questions
           </button>
         </nav>
       </div>
@@ -541,6 +572,125 @@ const DocumentOrganizerPage: React.FC = () => {
                 </div>
               </div>
             ))
+          )}
+        </div>
+      )}
+
+      {/* Questions Tab */}
+      {activeTab === 'questions' && (
+        <div className="space-y-6">
+          {/* Question Input */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Ask Questions About Your Documents
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Ask questions like "How much did I spend on taxes last year?" or "Show me all receipts from December"
+            </p>
+            
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <textarea
+                  value={questionInput}
+                  onChange={(e) => setQuestionInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleAskQuestion()}
+                  placeholder="Type your question here..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
+                />
+              </div>
+              <div className="flex-shrink-0">
+                <button
+                  onClick={handleAskQuestion}
+                  disabled={!questionInput.trim() || askingQuestion}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {askingQuestion ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Thinking...
+                    </div>
+                  ) : (
+                    'Ask'
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Quick question examples */}
+            <div className="mt-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Example questions:</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "How much did I spend on taxes last year?",
+                  "Show me all medical receipts",
+                  "What contracts expire this year?",
+                  "Total insurance payments in 2024"
+                ].map((example, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setQuestionInput(example)}
+                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Question Response */}
+          {questionResponse && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <div className="mb-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                  Question: {questionResponse.question}
+                </h4>
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
+                    {questionResponse.answer}
+                  </p>
+                </div>
+              </div>
+
+              {questionResponse.calculations && (
+                <div className="mb-4">
+                  <h5 className="font-medium text-gray-900 dark:text-white mb-2">Calculations:</h5>
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">{questionResponse.calculations}</p>
+                  </div>
+                </div>
+              )}
+
+              {questionResponse.relevantDocuments && questionResponse.relevantDocuments.length > 0 && (
+                <div className="mb-4">
+                  <h5 className="font-medium text-gray-900 dark:text-white mb-2">Relevant Documents:</h5>
+                  <div className="space-y-1">
+                    {questionResponse.relevantDocuments.map((doc, index) => (
+                      <span
+                        key={index}
+                        className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded dark:bg-gray-700 dark:text-gray-300 mr-2 mb-1"
+                      >
+                        📄 {doc}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {questionResponse.suggestions && (
+                <div className="mb-4">
+                  <h5 className="font-medium text-gray-900 dark:text-white mb-2">Suggestions:</h5>
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">{questionResponse.suggestions}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Analyzed {questionResponse.totalDocuments} documents
+              </div>
+            </div>
           )}
         </div>
       )}

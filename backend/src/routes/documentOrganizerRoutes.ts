@@ -494,6 +494,131 @@ router.post('/documents/search',
   }
 );
 
+// Ask questions about documents using AI
+router.post('/documents/ask',
+  [body('question').notEmpty().trim()],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { question } = req.body;
+
+      if (!anthropic) {
+        res.status(503).json({ error: 'AI service is not available' });
+        return;
+      }
+
+      // Get all user documents with extracted data
+      const documents = await prisma.document.findMany({
+        where: { 
+          userId,
+          status: 'completed'
+        },
+        include: {
+          extractedData: true,
+          categories: {
+            include: {
+              category: true
+            }
+          }
+        },
+        orderBy: { uploadDate: 'desc' }
+      });
+
+      if (documents.length === 0) {
+        res.json({
+          answer: 'I don\'t have any documents to analyze. Please upload some documents first.',
+          relevantDocuments: [],
+          question
+        });
+        return;
+      }
+
+      // Prepare document data for AI analysis
+      const documentData = documents.map(doc => {
+        const extractedFields = doc.extractedData.reduce((acc, data) => {
+          acc[data.fieldName] = data.fieldValue;
+          return acc;
+        }, {} as Record<string, string>);
+
+        const categories = doc.categories.map(cat => cat.category.name).join(', ');
+
+        return {
+          id: doc.id,
+          filename: doc.originalName,
+          categories,
+          uploadDate: doc.uploadDate.toISOString().split('T')[0],
+          extractedData: extractedFields,
+          textPreview: doc.extractedText?.substring(0, 500) || ''
+        };
+      });
+
+      // Use AI to answer the question
+      const prompt = `You are an AI assistant that analyzes document data to answer user questions. 
+
+User Question: "${question}"
+
+Document Data:
+${JSON.stringify(documentData, null, 2)}
+
+Please analyze the documents and provide a helpful answer to the user's question. If the question is about financial data (like taxes, expenses, amounts), try to calculate totals or provide specific amounts found in the documents. If you cannot find relevant information, let the user know what types of documents might help answer their question.
+
+Also, mention which specific documents were most relevant to your answer (use the filename and upload date).
+
+Format your response as JSON with this structure:
+{
+  "answer": "Your detailed answer here",
+  "relevantDocuments": ["document1.pdf", "document2.pdf"],
+  "calculations": "Any calculations performed (if applicable)",
+  "suggestions": "Suggestions for additional documents that might help (if needed)"
+}`;
+
+      const message = await anthropic.messages.create({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1000,
+        temperature: 0.3,
+        system: 'You are a helpful document analysis assistant. Always respond with valid JSON only.',
+        messages: [
+          { role: 'user', content: prompt }
+        ]
+      });
+
+      let aiResponse;
+      try {
+        const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
+        aiResponse = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', parseError);
+        // Fallback response
+        aiResponse = {
+          answer: "I found your documents but had trouble analyzing them. Please try rephrasing your question.",
+          relevantDocuments: [],
+          calculations: null,
+          suggestions: null
+        };
+      }
+
+      res.json({
+        question,
+        answer: aiResponse.answer,
+        relevantDocuments: aiResponse.relevantDocuments || [],
+        calculations: aiResponse.calculations,
+        suggestions: aiResponse.suggestions,
+        totalDocuments: documents.length
+      });
+
+    } catch (error) {
+      console.error('Question answering error:', error);
+      res.status(500).json({ error: 'Failed to process question' });
+    }
+  }
+);
+
 // Get document analytics
 router.get('/analytics',
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -703,13 +828,30 @@ async function extractDataWithAI(documentId: string, text: string) {
       model: 'claude-3-haiku-20240307',
       max_tokens: 500,
       temperature: 0,
-      system: 'You are a document analyzer. Extract key information from documents. Return JSON with extracted fields like: vendor, amount, date, invoice_number, expiration_date, etc. Only include fields you find.',
+      system: 'You are a document analyzer. Extract key information from documents. Return ONLY valid JSON with extracted fields like: {"vendor": "...", "amount": "...", "date": "...", "invoice_number": "...", "expiration_date": "..."}. Do not include any explanatory text, only the JSON object.',
       messages: [
-        { role: 'user', content: `Extract key information from this document:\n\n${text.substring(0, 3000)}` }
+        { role: 'user', content: `Extract key information from this document and return ONLY JSON:\n\n${text.substring(0, 3000)}` }
       ]
     });
 
-    const extractedData = JSON.parse(message.content[0].type === 'text' ? message.content[0].text : '{}');
+    let extractedData = {};
+    try {
+      const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
+      extractedData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      // Try to extract JSON from response that might have extra text
+      const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
+      const jsonMatch = responseText.match(/\{[^}]*\}/);
+      if (jsonMatch) {
+        try {
+          extractedData = JSON.parse(jsonMatch[0]);
+        } catch (secondParseError) {
+          console.error('Failed to parse extracted JSON:', secondParseError);
+          extractedData = {};
+        }
+      }
+    }
 
     // Store extracted data
     for (const [fieldName, fieldValue] of Object.entries(extractedData)) {
@@ -804,13 +946,30 @@ async function classifyDocument(documentId: string, text: string, filename: stri
       model: 'claude-3-haiku-20240307',
       max_tokens: 200,
       temperature: 0,
-      system: 'You are a document classifier. Classify documents into categories like: receipt, invoice, contract, warranty, medical, tax, insurance, etc. Return JSON with: category (string), confidence (0-1), suggestedTags (array).',
+      system: 'You are a document classifier. Classify documents into categories like: receipt, invoice, contract, warranty, medical, tax, insurance, etc. Return ONLY valid JSON with: {"category": "...", "confidence": 0.8, "suggestedTags": [...]}. Do not include any explanatory text, only the JSON object.',
       messages: [
-        { role: 'user', content: `Classify this document based on filename and content:\nFilename: ${filename}\nContent: ${text.substring(0, 1000)}` }
+        { role: 'user', content: `Classify this document and return ONLY JSON:\nFilename: ${filename}\nContent: ${text.substring(0, 1000)}` }
       ]
     });
 
-    const classification = JSON.parse(message.content[0].type === 'text' ? message.content[0].text : '{}');
+    let classification = {};
+    try {
+      const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
+      classification = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      // Try to extract JSON from response that might have extra text
+      const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
+      const jsonMatch = responseText.match(/\{[^}]*\}/);
+      if (jsonMatch) {
+        try {
+          classification = JSON.parse(jsonMatch[0]);
+        } catch (secondParseError) {
+          console.error('Failed to parse extracted JSON:', secondParseError);
+          classification = {};
+        }
+      }
+    }
 
     if (classification.category) {
       // Find or create category

@@ -56,22 +56,14 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    console.log('CORS origin check:', origin);
-    console.log('Allowed origins:', allowedOrigins);
-    console.log('FRONTEND_URL env var:', process.env.FRONTEND_URL);
-    
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('CORS origin allowed:', origin);
       callback(null, true);
     } else {
-      console.log('CORS origin blocked:', origin);
-      console.log('Available origins:', allowedOrigins);
       // For debugging in production, temporarily allow all origins
       if (process.env.NODE_ENV === 'production') {
-        console.log('Production mode: allowing origin for debugging');
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -116,7 +108,6 @@ app.get('/health', (_req, res) => {
 
 // Manual OPTIONS handler for all routes
 app.options('*', (req, res) => {
-  console.log('OPTIONS request for:', req.path, 'from origin:', req.get('Origin'));
   res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');

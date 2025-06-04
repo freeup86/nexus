@@ -100,6 +100,15 @@ export interface Analytics {
   documentsByMonth: { month: string; count: number }[];
 }
 
+export interface QuestionResponse {
+  question: string;
+  answer: string;
+  relevantDocuments: string[];
+  calculations?: string;
+  suggestions?: string;
+  totalDocuments: number;
+}
+
 class DocumentOrganizerService {
   async uploadDocuments(files: File[]): Promise<{ documents: { id: string; filename: string; status: string }[] }> {
     const formData = new FormData();
@@ -154,6 +163,11 @@ class DocumentOrganizerService {
     query: string;
   }> {
     const response = await axios.post(`${API_URL}/documents/search`, { query });
+    return response.data;
+  }
+
+  async askQuestion(question: string): Promise<QuestionResponse> {
+    const response = await axios.post(`${API_URL}/documents/ask`, { question });
     return response.data;
   }
 
