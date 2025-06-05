@@ -14,7 +14,8 @@ import {
   GlobeAltIcon,
   SparklesIcon,
   MoonIcon,
-  FolderIcon
+  FolderIcon,
+  BoltIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -24,6 +25,7 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+  { name: 'Smart Habits', href: '/smart-habits', icon: BoltIcon },
   { name: 'Twitter Bot', href: '/twitter-bot', icon: ChatBubbleLeftIcon },
   { name: 'Text Extractor', href: '/text-extractor', icon: DocumentTextIcon },
   { name: 'Contract Analyzer', href: '/contract-analyzer', icon: DocumentMagnifyingGlassIcon },

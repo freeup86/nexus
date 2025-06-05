@@ -21,6 +21,9 @@ import documentRoutes from './routes/documentRoutes';
 import dreamRoutes from './routes/dreamRoutes';
 import documentOrganizerRoutes from './routes/documentOrganizerRoutes';
 
+// Smart Habits routes
+import habitRoutes from './routes/habitRoutes';
+
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
 import { authenticateToken } from './middleware/auth';
@@ -128,6 +131,9 @@ app.use('/api/travel', authenticateToken, travelRoutes);
 app.use('/api/documents', authenticateTokenSimple, documentRoutes);
 app.use('/api/dreams', authenticateToken, dreamRoutes);
 app.use('/api/document-organizer', authenticateToken, documentOrganizerRoutes);
+
+// Smart Habits API Routes
+app.use('/api/habits', authenticateToken, habitRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

@@ -37,6 +37,14 @@ model User {
   dreamPatterns   DreamPattern[]
   documents       Document[]
   apiKeys         ApiKey[]
+  
+  // Smart Habits relationships
+  habits          Habit[]
+  habitLogs       HabitLog[]
+  journalEntries  JournalEntry[]
+  partnerships1   AccountabilityPartnership[] @relation("User1Partnerships")
+  partnerships2   AccountabilityPartnership[] @relation("User2Partnerships")
+  sentMessages    PartnerMessage[] @relation("SentMessages")
 }
 
 model Session {
@@ -421,6 +429,136 @@ model Document {
   @@index([userId])
   @@index([status])
   @@index([uploadDate])
+}
+
+// Smart Habits System Models
+model Habit {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+  category        String   // health, productivity, mindfulness, learning, etc.
+  frequencyType   String   // daily, weekly, custom
+  frequencyDetails Json?   // {times_per_week: 3, specific_days: ["mon", "wed", "fri"]}
+  microHabits     Json     @default("[]") // ["Put on gym clothes", "Drive to gym", "Complete workout"]
+  targetTime      String?  // "09:00" - preferred time
+  reminderEnabled Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relationships
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs            HabitLog[]
+  journalEntries  JournalEntry[]
+  predictions     HabitPrediction[]
+  partnerships    AccountabilityPartnership[] @relation("HabitPartnerships")
+  
+  @@index([userId])
+  @@index([category])
+  @@index([isActive])
+}
+
+model HabitLog {
+  id               String    @id @default(cuid())
+  habitId          String
+  userId           String
+  completedAt      DateTime  @default(now())
+  completionStatus String    // completed, skipped, partial
+  qualityRating    Int?      // 1-5 scale
+  mood             String?   // happy, neutral, stressed, tired, energetic
+  energyLevel      String?   // low, medium, high
+  location         String?
+  contextNotes     String?
+  skipReason       String?   // no_time, forgot, sick, traveling, unmotivated
+  duration         Int?      // minutes spent on habit
+  createdAt        DateTime  @default(now())
+  
+  // Relationships
+  habit            Habit     @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([habitId])
+  @@index([userId])
+  @@index([completedAt])
+  @@index([completionStatus])
+}
+
+model JournalEntry {
+  id           String   @id @default(cuid())
+  userId       String
+  habitId      String?
+  promptType   String   // daily_reflection, habit_success, habit_skip, weekly_summary
+  promptText   String
+  userResponse String   @db.Text
+  aiAnalysis   Json?    // {sentiment, key_themes, actionable_insights, concerns}
+  isVoiceEntry Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  
+  // Relationships
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit        Habit?   @relation(fields: [habitId], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([habitId])
+  @@index([promptType])
+  @@index([createdAt])
+}
+
+model HabitPrediction {
+  id                String   @id @default(cuid())
+  habitId           String
+  predictionDate    DateTime
+  skipRiskScore     Float    // 0.0 to 1.0
+  recommendedTimes  Json     // ["09:00", "13:00", "18:00"]
+  riskFactors       Json     // {late_meeting: 0.3, low_energy: 0.2}
+  confidence        Float    // model confidence in prediction
+  actualOutcome     String?  // completed, skipped - filled after the fact
+  createdAt         DateTime @default(now())
+  
+  // Relationships
+  habit             Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  
+  @@index([habitId])
+  @@index([predictionDate])
+}
+
+model AccountabilityPartnership {
+  id               String   @id @default(cuid())
+  user1Id          String
+  user2Id          String
+  sharedHabits     String[] // Array of habit IDs
+  partnershipType  String   // mutual_support, competitive, mentor
+  matchedOn        Json?    // {shared_categories, timezone_compatibility, etc.}
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  
+  // Relationships
+  user1            User     @relation("User1Partnerships", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2            User     @relation("User2Partnerships", fields: [user2Id], references: [id], onDelete: Cascade)
+  habits           Habit[]  @relation("HabitPartnerships")
+  messages         PartnerMessage[]
+  
+  @@index([user1Id])
+  @@index([user2Id])
+  @@index([isActive])
+}
+
+model PartnerMessage {
+  id           String   @id @default(cuid())
+  partnershipId String
+  senderId     String
+  message      String   @db.Text
+  messageType  String   // encouragement, check_in, celebration, challenge
+  createdAt    DateTime @default(now())
+  
+  // Relationships
+  partnership  AccountabilityPartnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
+  sender       User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@index([partnershipId])
+  @@index([senderId])
+  @@index([createdAt])
 }
 
 model DocumentData {

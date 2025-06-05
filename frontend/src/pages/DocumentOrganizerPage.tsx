@@ -138,7 +138,7 @@ const DocumentOrganizerPage: React.FC = () => {
 
     try {
       // For large numbers of files, upload in batches
-      const batchSize = 3; // Further reduced batch size to avoid network issues
+      const batchSize = 1; // Reduced to 1 file at a time to avoid network issues
       const batches = [];
       
       for (let i = 0; i < validFiles.length; i += batchSize) {

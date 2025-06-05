@@ -12,10 +12,19 @@ import {
   WrenchScrewdriverIcon,
   GlobeAltIcon,
   MoonIcon,
-  FolderIcon
+  FolderIcon,
+  BoltIcon
 } from '@heroicons/react/24/outline';
 
 const utilities = [
+  {
+    name: 'Smart Habits',
+    description: 'Build lasting habits with AI-powered insights and predictions',
+    icon: BoltIcon,
+    href: '/smart-habits',
+    color: 'bg-indigo-600',
+    stats: { label: 'Active Habits', value: '0' }
+  },
   {
     name: 'Twitter Bot',
     description: 'Generate and schedule AI-powered tweets',

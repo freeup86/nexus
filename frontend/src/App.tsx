@@ -16,6 +16,7 @@ import TravelPlannerPage from './pages/TravelPlannerPage';
 import DocumentSummarizerPage from './pages/DocumentSummarizerPage';
 import DreamJournalPage from './pages/DreamJournalPage';
 import DocumentOrganizerPage from './pages/DocumentOrganizerPage';
+import SmartHabitsPage from './pages/SmartHabitsPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import { ApiTestPage } from './pages/ApiTestPage';
@@ -64,6 +65,7 @@ function App() {
               <Route path="document-summarizer" element={<DocumentSummarizerPage />} />
               <Route path="dream-journal" element={<DreamJournalPage />} />
               <Route path="document-organizer" element={<DocumentOrganizerPage />} />
+              <Route path="smart-habits" element={<SmartHabitsPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="api-test" element={<ApiTestPage />} />

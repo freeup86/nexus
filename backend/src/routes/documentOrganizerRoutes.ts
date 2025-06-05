@@ -962,16 +962,36 @@ async function extractDataWithAI(documentId: string, text: string) {
       extractedData = JSON.parse(responseText);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
+      console.error('Raw AI response:', message.content[0].type === 'text' ? message.content[0].text : 'No text content');
+      
       // Try to extract JSON from response that might have extra text
       const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
-      const jsonMatch = responseText.match(/\{[^}]*\}/);
-      if (jsonMatch) {
-        try {
-          extractedData = JSON.parse(jsonMatch[0]);
-        } catch (secondParseError) {
-          console.error('Failed to parse extracted JSON:', secondParseError);
-          extractedData = {};
+      
+      // Try multiple patterns to find JSON
+      const patterns = [
+        /\{[\s\S]*\}/,  // Match from first { to last }
+        /```json\s*(\{[\s\S]*?\})\s*```/i,  // Match JSON in code blocks
+        /```\s*(\{[\s\S]*?\})\s*```/i,  // Match JSON in generic code blocks
+      ];
+      
+      let jsonFound = false;
+      for (const pattern of patterns) {
+        const match = responseText.match(pattern);
+        if (match) {
+          try {
+            const jsonText = match[1] || match[0]; // Use capture group if available, otherwise full match
+            extractedData = JSON.parse(jsonText);
+            jsonFound = true;
+            break;
+          } catch (secondParseError) {
+            continue; // Try next pattern
+          }
         }
+      }
+      
+      if (!jsonFound) {
+        console.error('Could not extract valid JSON from AI response');
+        extractedData = {};
       }
     }
 
@@ -1080,16 +1100,36 @@ async function classifyDocument(documentId: string, text: string, filename: stri
       classification = JSON.parse(responseText);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
+      console.error('Raw AI response:', message.content[0].type === 'text' ? message.content[0].text : 'No text content');
+      
       // Try to extract JSON from response that might have extra text
       const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
-      const jsonMatch = responseText.match(/\{[^}]*\}/);
-      if (jsonMatch) {
-        try {
-          classification = JSON.parse(jsonMatch[0]);
-        } catch (secondParseError) {
-          console.error('Failed to parse extracted JSON:', secondParseError);
-          classification = {};
+      
+      // Try multiple patterns to find JSON
+      const patterns = [
+        /\{[\s\S]*\}/,  // Match from first { to last }
+        /```json\s*(\{[\s\S]*?\})\s*```/i,  // Match JSON in code blocks
+        /```\s*(\{[\s\S]*?\})\s*```/i,  // Match JSON in generic code blocks
+      ];
+      
+      let jsonFound = false;
+      for (const pattern of patterns) {
+        const match = responseText.match(pattern);
+        if (match) {
+          try {
+            const jsonText = match[1] || match[0]; // Use capture group if available, otherwise full match
+            classification = JSON.parse(jsonText);
+            jsonFound = true;
+            break;
+          } catch (secondParseError) {
+            continue; // Try next pattern
+          }
         }
+      }
+      
+      if (!jsonFound) {
+        console.error('Could not extract valid JSON from AI response');
+        classification = {};
       }
     }
 
