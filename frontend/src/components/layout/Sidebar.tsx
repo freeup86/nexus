@@ -15,7 +15,9 @@ import {
   SparklesIcon,
   MoonIcon,
   FolderIcon,
-  BoltIcon
+  BoltIcon,
+  ChartBarIcon,
+  TrophyIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -25,7 +27,6 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Smart Habits', href: '/smart-habits', icon: BoltIcon },
   { name: 'Twitter Bot', href: '/twitter-bot', icon: ChatBubbleLeftIcon },
   { name: 'Text Extractor', href: '/text-extractor', icon: DocumentTextIcon },
   { name: 'Contract Analyzer', href: '/contract-analyzer', icon: DocumentMagnifyingGlassIcon },
@@ -35,6 +36,9 @@ const navigation = [
   { name: 'DIY Projects', href: '/diy-projects', icon: WrenchScrewdriverIcon },
   { name: 'Travel Planner', href: '/travel-planner', icon: GlobeAltIcon },
   { name: 'Dream Journal', href: '/dream-journal', icon: MoonIcon },
+  { name: 'Smart Habits', href: '/smart-habits', icon: BoltIcon },
+  { name: 'Personal Insights', href: '/personal-insights', icon: ChartBarIcon },
+  { name: 'Progress & Rewards', href: '/gamification', icon: TrophyIcon },
 ];
 
 const secondaryNavigation = [

@@ -59,7 +59,7 @@ const SettingsPage: React.FC = () => {
     api2ConvertKey: ''
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   useEffect(() => {
     fetchSettings();

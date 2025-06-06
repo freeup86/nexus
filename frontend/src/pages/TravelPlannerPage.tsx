@@ -53,7 +53,7 @@ const TravelPlannerPage: React.FC = () => {
     upcoming: false
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   useEffect(() => {
     if (viewMode === 'dashboard') {

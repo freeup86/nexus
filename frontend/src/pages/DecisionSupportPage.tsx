@@ -62,7 +62,7 @@ const DecisionSupportPage: React.FC = () => {
   const [scores, setScores] = useState<{ [key: string]: number }>({});
   const [analysisResult, setAnalysisResult] = useState<any>(null);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   useEffect(() => {
     if (activeTab === 'decisions') {

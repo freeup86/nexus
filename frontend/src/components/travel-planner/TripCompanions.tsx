@@ -37,7 +37,7 @@ const TripCompanions: React.FC<TripCompanionsProps> = ({ tripId, currentUserId }
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCompanion, setEditingCompanion] = useState<TripCompanion | null>(null);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const roles = [
     { value: 'organizer', label: 'Organizer', color: 'bg-purple-500' },

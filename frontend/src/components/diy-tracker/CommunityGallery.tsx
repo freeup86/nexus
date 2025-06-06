@@ -35,7 +35,7 @@ const CommunityGallery: React.FC<CommunityGalleryProps> = ({ onProjectSelect }) 
     totalPages: 0
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   useEffect(() => {
     fetchGallery();

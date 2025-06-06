@@ -20,6 +20,8 @@ import travelRoutes from './routes/travelRoutes';
 import documentRoutes from './routes/documentRoutes';
 import dreamRoutes from './routes/dreamRoutes';
 import documentOrganizerRoutes from './routes/documentOrganizerRoutes';
+import personalInsightsRoutes from './routes/personalInsightsRoutes';
+import gamificationRoutes from './routes/gamificationRoutes';
 
 // Smart Habits routes
 import habitRoutes from './routes/habitRoutes';
@@ -44,7 +46,8 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
 // CORS configuration
@@ -101,8 +104,13 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(compression());
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve uploaded files with CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -131,6 +139,8 @@ app.use('/api/travel', authenticateToken, travelRoutes);
 app.use('/api/documents', authenticateTokenSimple, documentRoutes);
 app.use('/api/dreams', authenticateToken, dreamRoutes);
 app.use('/api/document-organizer', authenticateToken, documentOrganizerRoutes);
+app.use('/api/personal-insights', authenticateToken, personalInsightsRoutes);
+app.use('/api/gamification', authenticateToken, gamificationRoutes);
 
 // Smart Habits API Routes
 app.use('/api/habits', authenticateToken, habitRoutes);

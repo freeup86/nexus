@@ -45,6 +45,19 @@ model User {
   partnerships1   AccountabilityPartnership[] @relation("User1Partnerships")
   partnerships2   AccountabilityPartnership[] @relation("User2Partnerships")
   sentMessages    PartnerMessage[] @relation("SentMessages")
+  
+  // Personal Analytics relationships
+  personalInsights PersonalInsight[]
+  moodEntries     MoodEntry[]
+  lifeMetrics     LifeMetric[]
+  coachingSuggestions CoachingSuggestion[]
+  
+  // Gamification relationships
+  userLevel       UserLevel?
+  userAchievements UserAchievement[]
+  streaks         Streak[]
+  userRewards     UserReward[]
+  dailyChallengeCompletions DailyChallengeCompletion[]
 }
 
 model Session {
@@ -649,4 +662,240 @@ model DocumentReminder {
   @@index([documentId])
   @@index([reminderDate])
   @@index([completed])
+}
+
+// Personal Analytics & Insights Models
+model PersonalInsight {
+  id             String   @id @default(cuid())
+  userId         String
+  insightType    String   // 'life_pattern', 'mood_trend', 'energy_pattern', 'cross_domain', 'coaching_suggestion'
+  title          String
+  description    String   @db.Text
+  dataPoints     Json     // Raw data used for analysis
+  confidence     Float    // 0-1 confidence score
+  priority       String   @default("medium") // low, medium, high, urgent
+  status         String   @default("active") // active, acknowledged, dismissed
+  actionable     Boolean  @default(false)
+  categories     String[] // domains this insight touches (habits, dreams, decisions, etc.)
+  timeframe      String?  // 'daily', 'weekly', 'monthly', 'yearly'
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  acknowledgedAt DateTime?
+  
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([insightType])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model MoodEntry {
+  id           String   @id @default(cuid())
+  userId       String
+  mood         String   // happy, sad, anxious, excited, calm, stressed, angry, content, etc.
+  intensity    Int      // 1-10 scale
+  energyLevel  String   // very_low, low, medium, high, very_high
+  notes        String?  @db.Text
+  triggers     String[] // work, family, health, weather, exercise, sleep, etc.
+  activities   String[] // What they were doing when they felt this way
+  location     String?  // home, work, gym, outdoors, etc.
+  weather      String?  // sunny, rainy, cloudy, snowy, etc.
+  createdAt    DateTime @default(now())
+  recordedAt   DateTime // When the mood actually occurred
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([recordedAt])
+  @@index([mood])
+  @@index([energyLevel])
+}
+
+model LifeMetric {
+  id          String   @id @default(cuid())
+  userId      String
+  metricType  String   // 'productivity', 'stress_level', 'sleep_quality', 'social_interaction', 'physical_activity'
+  value       Float    // Normalized 0-10 scale
+  rawValue    String?  // Original value and unit
+  notes       String?
+  recordedAt  DateTime
+  source      String?  // 'manual', 'habit_log', 'dream_analysis', 'decision_outcome'
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([metricType])
+  @@index([recordedAt])
+  @@index([source])
+}
+
+model CoachingSuggestion {
+  id           String   @id @default(cuid())
+  userId       String
+  category     String   // 'habit_optimization', 'mood_improvement', 'productivity', 'stress_management', 'life_balance'
+  title        String
+  suggestion   String   @db.Text
+  reasoning    String   @db.Text
+  difficulty   String   // easy, medium, hard
+  timeframe    String   // immediate, daily, weekly, monthly
+  priority     Int      @default(5) // 1-10 scale
+  status       String   @default("pending") // pending, accepted, dismissed, completed
+  basedOn      Json     // Data sources that led to this suggestion
+  createdAt    DateTime @default(now())
+  acceptedAt   DateTime?
+  completedAt  DateTime?
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+// Gamification Models
+model UserLevel {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  level             Int      @default(1)
+  currentXP         Int      @default(0)
+  totalXP           Int      @default(0)
+  xpToNextLevel     Int      @default(100)
+  title             String   @default("Beginner")
+  unlockedFeatures  String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([level])
+}
+
+model Achievement {
+  id                String   @id @default(cuid())
+  code              String   @unique // e.g., "habit_streak_7", "mood_logger_30"
+  name              String
+  description       String
+  category          String   // habits, mood, dreams, decisions, etc.
+  icon              String   // emoji or icon name
+  xpReward          Int
+  rarity            String   // common, rare, epic, legendary
+  requirement       Json     // criteria for earning
+  isSecret          Boolean  @default(false)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  
+  userAchievements  UserAchievement[]
+  
+  @@index([category])
+  @@index([rarity])
+}
+
+model UserAchievement {
+  id                String   @id @default(cuid())
+  userId            String
+  achievementId     String
+  earnedAt          DateTime @default(now())
+  progress          Float    @default(0) // 0-1 for partial progress
+  metadata          Json?    // additional context about how it was earned
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement       Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+  @@index([earnedAt])
+}
+
+model Streak {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String   // habit_specific, overall_habits, mood_logging, etc.
+  targetId          String?  // habitId if habit-specific
+  currentStreak     Int      @default(0)
+  longestStreak     Int      @default(0)
+  lastActivityDate  DateTime?
+  streakStartDate   DateTime?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, type, targetId])
+  @@index([userId])
+  @@index([type])
+  @@index([isActive])
+}
+
+model Reward {
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  type              String   // badge, theme, feature_unlock, title
+  value             String   // actual reward data (color hex, feature name, etc.)
+  cost              Int?     // if purchasable with points
+  requiredLevel     Int?     // minimum level to unlock
+  icon              String
+  category          String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  
+  userRewards       UserReward[]
+  
+  @@index([type])
+  @@index([category])
+}
+
+model UserReward {
+  id                String   @id @default(cuid())
+  userId            String
+  rewardId          String
+  unlockedAt        DateTime @default(now())
+  isEquipped        Boolean  @default(false) // for titles, themes, etc.
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward            Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, rewardId])
+  @@index([userId])
+  @@index([rewardId])
+}
+
+model DailyChallenge {
+  id                String   @id @default(cuid())
+  date              DateTime @unique
+  type              String   // habit_completion, mood_check, dream_log, etc.
+  description       String
+  requirement       Json     // what needs to be done
+  xpReward          Int
+  bonusXP           Int?     // for completing early or with high quality
+  icon              String
+  createdAt         DateTime @default(now())
+  
+  completions       DailyChallengeCompletion[]
+  
+  @@index([date])
+  @@index([type])
+}
+
+model DailyChallengeCompletion {
+  id                String   @id @default(cuid())
+  userId            String
+  challengeId       String
+  completedAt       DateTime @default(now())
+  bonusEarned       Boolean  @default(false)
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge         DailyChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, challengeId])
+  @@index([userId])
+  @@index([challengeId])
 }

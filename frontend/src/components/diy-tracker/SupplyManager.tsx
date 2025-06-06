@@ -84,7 +84,7 @@ export default function SupplyManager({ projectId, supplies, onSuppliesUpdate }:
     notes: ''
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   // Calculate totals
   const totalEstimatedCost = supplies.reduce((sum, s) => sum + (Number(s.estimatedCost) || 0), 0);

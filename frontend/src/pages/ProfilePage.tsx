@@ -40,7 +40,7 @@ const ProfilePage: React.FC = () => {
     confirmPassword: ''
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   // Fetch fresh user profile data on component mount
   useEffect(() => {
@@ -83,8 +83,6 @@ const ProfilePage: React.FC = () => {
       const response = await axios.put(
         `${apiUrl}/users/profile`,
         {
-          username: formData.username,
-          email: formData.email,
           firstName: formData.firstName,
           lastName: formData.lastName
         },
@@ -118,7 +116,7 @@ const ProfilePage: React.FC = () => {
 
     try {
       await axios.put(
-        `${apiUrl}/users/change-password`,
+        `${apiUrl}/users/password`,
         {
           currentPassword: formData.currentPassword,
           newPassword: formData.newPassword
@@ -159,11 +157,11 @@ const ProfilePage: React.FC = () => {
 
     setIsUploading(true);
     const formData = new FormData();
-    formData.append('profilePicture', file);
+    formData.append('picture', file);
 
     try {
       const response = await axios.post(
-        `${apiUrl}/users/upload-profile-picture`,
+        `${apiUrl}/users/profile/picture`,
         formData,
         {
           headers: {
@@ -173,6 +171,8 @@ const ProfilePage: React.FC = () => {
         }
       );
 
+      console.log('Profile picture upload response:', response.data.user);
+      console.log('New profilePicture value:', response.data.user.profilePicture);
       updateUser(response.data.user);
       toast.success('Profile picture updated!');
     } catch (error: any) {
@@ -212,9 +212,18 @@ const ProfilePage: React.FC = () => {
               <div className="relative inline-block">
                 {user?.profilePicture ? (
                   <img
-                    src={user.profilePicture}
+                    src={user.profilePicture?.startsWith('http') ? user.profilePicture : `${apiUrl.replace('/api', '')}${user.profilePicture}`}
                     alt="Profile"
                     className="h-32 w-32 rounded-full object-cover"
+                    onError={(e) => {
+                      const imageUrl = user?.profilePicture?.startsWith('http') ? user.profilePicture : `${apiUrl.replace('/api', '')}${user?.profilePicture}`;
+                      console.error('Failed to load profile image. Expected URL:', imageUrl);
+                      console.error('Raw profilePicture value:', user?.profilePicture);
+                      console.error('API URL:', apiUrl);
+                    }}
+                    onLoad={() => {
+                      console.log('Profile image loaded successfully');
+                    }}
                   />
                 ) : (
                   <UserCircleIcon className="h-32 w-32 text-gray-400 dark:text-gray-500" />
@@ -319,9 +328,9 @@ const ProfilePage: React.FC = () => {
                       type="text"
                       name="username"
                       value={formData.username}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                      className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                      disabled={true}
+                      className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 text-gray-500 cursor-not-allowed"
+                      title="Username cannot be changed"
                     />
                   </div>
                 </div>
@@ -336,9 +345,9 @@ const ProfilePage: React.FC = () => {
                       type="email"
                       name="email"
                       value={formData.email}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                      className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                      disabled={true}
+                      className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 text-gray-500 cursor-not-allowed"
+                      title="Email cannot be changed"
                     />
                   </div>
                 </div>

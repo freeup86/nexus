@@ -40,7 +40,7 @@ const PackingList: React.FC<PackingListProps> = ({ tripId, tripType, destination
   const [showPackedOnly, setShowPackedOnly] = useState(false);
   const [showEssentialOnly, setShowEssentialOnly] = useState(false);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const categories = [
     { value: 'clothing', label: 'Clothing', icon: '👕' },

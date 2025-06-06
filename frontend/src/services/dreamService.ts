@@ -1,6 +1,6 @@
 import { Dream, DreamPattern, DreamStats, PatternAnalysis } from '../types/dream';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5001';
+const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5002';
 
 class DreamService {
   private getAuthHeaders(): HeadersInit {

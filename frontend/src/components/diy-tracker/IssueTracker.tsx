@@ -85,7 +85,7 @@ export default function IssueTracker({ projectId, issues, photos, onIssuesUpdate
     resolution: ''
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   // Filter issues
   const filteredIssues = issues.filter(issue => {

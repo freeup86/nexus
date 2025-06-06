@@ -16,6 +16,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm">
@@ -54,15 +56,27 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                 <div className="flex items-center space-x-3">
                   {user?.profilePicture ? (
                     <img
-                      className="h-8 w-8 rounded-full"
-                      src={user.profilePicture}
+                      className="h-8 w-8 rounded-full object-cover"
+                      src={user.profilePicture?.startsWith('http') ? user.profilePicture : `${apiUrl.replace('/api', '')}${user.profilePicture}`}
                       alt={user.username}
+                      onError={(e) => {
+                        // Hide the image and show fallback if loading fails
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.nextElementSibling) {
+                          (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                        }
+                      }}
                     />
-                  ) : (
+                  ) : null}
+                  {!user?.profilePicture && (
                     <div className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center text-white">
                       {user?.username?.[0]?.toUpperCase() || 'U'}
                     </div>
                   )}
+                  {/* Fallback div that shows when image fails to load */}
+                  <div className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center text-white" style={{display: 'none'}}>
+                    {user?.username?.[0]?.toUpperCase() || 'U'}
+                  </div>
                   <span className="hidden md:block text-gray-700 dark:text-gray-300">
                     {user?.firstName || user?.username}
                   </span>

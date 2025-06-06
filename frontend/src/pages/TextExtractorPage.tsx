@@ -34,7 +34,7 @@ const TextExtractorPage: React.FC = () => {
   const [recentExtractions, setRecentExtractions] = useState<ExtractionResult[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {

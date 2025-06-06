@@ -41,7 +41,7 @@ const TripExpenses: React.FC<TripExpensesProps> = ({ tripId, currency, totalBudg
   const [filterCategory, setFilterCategory] = useState('');
   const [sortBy, setSortBy] = useState('date');
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const categories = [
     { value: 'accommodation', label: 'Accommodation', color: 'bg-purple-500' },

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { Upload, FileText, AlertTriangle, Calendar, Download, Clock, ChevronDown, ChevronUp, X, File, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
 interface ContractAnalysis {
   id: string;

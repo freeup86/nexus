@@ -45,7 +45,7 @@ const TripDetails: React.FC<TripDetailsProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   useEffect(() => {
     fetchTripDetails();

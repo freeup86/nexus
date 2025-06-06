@@ -43,7 +43,7 @@ const TripPhotos: React.FC<TripPhotosProps> = ({ tripId }) => {
   const [sortBy, setSortBy] = useState('newest');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const [uploadForm, setUploadForm] = useState({
     caption: '',

@@ -39,7 +39,7 @@ const TripDocuments: React.FC<TripDocumentsProps> = ({ tripId }) => {
   const [filterType, setFilterType] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const documentTypes = [
     { value: 'passport', label: 'Passport', icon: '📘', requiresExpiry: true },

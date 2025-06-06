@@ -62,7 +62,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     stepOrder: project.ProjectMilestones?.length + 1 || 1
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const handleSaveEdit = async () => {
     setIsLoading(true);

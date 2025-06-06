@@ -37,7 +37,7 @@ const DocumentSummarizerPage: React.FC = () => {
   const [textInput, setTextInput] = useState('');
   const [inputMode, setInputMode] = useState<'file' | 'text'>('file');
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();

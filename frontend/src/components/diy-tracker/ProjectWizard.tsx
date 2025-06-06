@@ -47,7 +47,7 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ onProjectCreated, onCance
   });
 
   const [aiGeneratedPlan, setAiGeneratedPlan] = useState<any>(null);
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const handleNaturalLanguageSubmit = async () => {
     if (!naturalLanguageInput.trim()) {

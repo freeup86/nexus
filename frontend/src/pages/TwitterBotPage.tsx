@@ -33,7 +33,7 @@ const TwitterBotPage: React.FC = () => {
   const [isPosting, setIsPosting] = useState(false);
   const [activeTab, setActiveTab] = useState<'compose' | 'scheduled' | 'history'>('compose');
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   useEffect(() => {
     if (activeTab !== 'compose') {

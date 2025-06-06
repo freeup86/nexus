@@ -61,7 +61,7 @@ const TripItinerary: React.FC<TripItineraryProps> = ({ tripId, startDate, endDat
     duration: ''
   });
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
   const categories = [
     { value: 'transport', label: 'Transport', color: 'bg-blue-500' },
