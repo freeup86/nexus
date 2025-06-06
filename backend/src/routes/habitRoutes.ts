@@ -538,8 +538,9 @@ router.post('/journal/entry',
         return;
       }
 
-      // If habitId provided, verify it belongs to user
-      if (req.body.habitId) {
+      // If habitId provided and not empty, verify it belongs to user
+      let validatedHabitId = null;
+      if (req.body.habitId && req.body.habitId !== 'undefined' && req.body.habitId !== 'null') {
         const habit = await prisma.habit.findFirst({
           where: {
             id: req.body.habitId,
@@ -548,8 +549,11 @@ router.post('/journal/entry',
         });
 
         if (!habit) {
-          res.status(404).json({ error: 'Habit not found' });
-          return;
+          console.warn(`Habit ${req.body.habitId} not found for user ${userId}, creating entry without habit association`);
+          // Don't fail, just create entry without habit association
+          validatedHabitId = null;
+        } else {
+          validatedHabitId = req.body.habitId;
         }
       }
 
@@ -557,7 +561,7 @@ router.post('/journal/entry',
       const entry = await prisma.journalEntry.create({
         data: {
           userId,
-          habitId: req.body.habitId || null,
+          habitId: validatedHabitId,
           promptType: req.body.promptType || 'custom',
           promptText: req.body.promptText || '',
           userResponse: req.body.userResponse || '',
