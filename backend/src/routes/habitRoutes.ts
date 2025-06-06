@@ -628,16 +628,153 @@ router.get('/journal/prompts/today',
         return;
       }
 
-      // Simple prompts for now
-      const prompts = [
-        {
-          type: 'daily_reflection',
-          promptText: 'How are you feeling about your habits today? What patterns do you notice?',
-          priority: 'low'
+      // Get user's habits and recent activity
+      const habits = await prisma.habit.findMany({
+        where: { userId, isActive: true },
+        include: {
+          logs: {
+            orderBy: { completedAt: 'desc' },
+            take: 7 // Last week
+          }
         }
-      ];
+      });
 
-      res.json({ prompts });
+      // Get recent journal entries to avoid repetition
+      const recentEntries = await prisma.journalEntry.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { promptType: true, promptText: true, userResponse: true }
+      });
+
+      // Get today's logs
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      const todayLogs = await prisma.habitLog.findMany({
+        where: {
+          userId,
+          completedAt: {
+            gte: today,
+            lt: tomorrow
+          }
+        },
+        include: {
+          habit: true
+        }
+      });
+
+      // Prepare context for AI
+      const hour = new Date().getHours();
+      const dayOfWeek = new Date().getDay();
+      const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 22 ? 'evening' : 'night';
+      const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
+
+      // Analyze habit performance
+      const habitAnalysis = habits.map(habit => {
+        const recentLogs = habit.logs || [];
+        const completionRate = recentLogs.length > 0 
+          ? recentLogs.filter(log => log.completionStatus === 'completed').length / recentLogs.length 
+          : 0;
+        
+        let currentStreak = 0;
+        for (const log of recentLogs) {
+          if (log.completionStatus === 'completed') {
+            currentStreak++;
+          } else {
+            break;
+          }
+        }
+
+        return {
+          name: habit.name,
+          category: habit.category,
+          completionRate: Math.round(completionRate * 100),
+          currentStreak,
+          lastCompleted: recentLogs.find(log => log.completionStatus === 'completed')?.completedAt
+        };
+      });
+
+      // Generate AI prompts if Anthropic is available
+      let aiPrompts = [];
+      if (anthropic) {
+        try {
+          const contextPrompt = `Generate 3-5 personalized journal prompts for a user tracking their habits. Context:
+
+Time: ${timeOfDay} on ${dayName}
+Active habits: ${habitAnalysis.map(h => `${h.name} (${h.category}, ${h.completionRate}% completion, ${h.currentStreak} day streak)`).join(', ')}
+Today's activity: ${todayLogs.length} habits logged today
+Recent journal themes: ${recentEntries.slice(0, 3).map(e => e.promptText).join('; ')}
+
+Guidelines:
+1. Make prompts specific to their habits and current time of day
+2. Vary the prompt types (reflection, planning, celebration, problem-solving)
+3. If a habit has low completion or was skipped, ask supportive questions
+4. If there's a streak or high completion, celebrate and explore what's working
+5. Avoid repeating themes from recent entries
+6. Keep prompts concise and actionable
+7. Match the time of day (morning=planning, evening=reflection)
+
+Format response as JSON array with objects containing:
+- type: 'daily_reflection' | 'habit_specific' | 'milestone' | 'planning' | 'problem_solving'
+- promptText: the actual prompt
+- priority: 'high' | 'medium' | 'low'
+- habitId: (optional) specific habit ID if prompt is about one habit`;
+
+          const message = await anthropic.messages.create({
+            model: 'claude-3-haiku-20240307',
+            max_tokens: 600,
+            temperature: 0.8,
+            system: 'You are a supportive habit coach generating personalized journal prompts. Be encouraging, insightful, and help users reflect meaningfully on their progress.',
+            messages: [{ role: 'user', content: contextPrompt }]
+          });
+
+          const responseText = message.content[0].type === 'text' ? message.content[0].text : '[]';
+          aiPrompts = JSON.parse(responseText);
+        } catch (error) {
+          console.error('AI prompt generation failed:', error);
+        }
+      }
+
+      // Fallback to basic prompts if AI fails
+      if (aiPrompts.length === 0) {
+        aiPrompts = [
+          {
+            type: 'daily_reflection',
+            promptText: `How are you feeling about your habits this ${timeOfDay}?`,
+            priority: 'medium'
+          }
+        ];
+
+        // Add a habit-specific prompt if there's activity
+        if (todayLogs.length > 0) {
+          const randomLog = todayLogs[Math.floor(Math.random() * todayLogs.length)];
+          aiPrompts.push({
+            type: 'habit_specific',
+            habitId: randomLog.habitId,
+            promptText: `You ${randomLog.completionStatus} "${randomLog.habit.name}" today. What influenced this outcome?`,
+            priority: 'high'
+          });
+        }
+      }
+
+      // Add habit IDs to prompts that mention specific habits
+      const finalPrompts = aiPrompts.map(prompt => {
+        if (!prompt.habitId && prompt.promptText) {
+          // Try to match habit names in the prompt
+          for (const habit of habits) {
+            if (prompt.promptText.includes(habit.name)) {
+              prompt.habitId = habit.id;
+              break;
+            }
+          }
+        }
+        return prompt;
+      });
+
+      res.json({ prompts: finalPrompts });
     } catch (error) {
       console.error('Get today prompts error:', error);
       res.status(500).json({ error: 'Failed to get today\'s prompts' });
@@ -655,25 +792,124 @@ router.get('/journal/insights/weekly',
         return;
       }
 
-      // Simple weekly insights for now
+      // Calculate week dates
       const weekStart = new Date();
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      weekStart.setHours(0, 0, 0, 0);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 7);
+
+      // Get week's data
+      const [habits, logs, journalEntries] = await Promise.all([
+        prisma.habit.findMany({
+          where: { userId, isActive: true }
+        }),
+        prisma.habitLog.findMany({
+          where: {
+            userId,
+            completedAt: {
+              gte: weekStart,
+              lt: weekEnd
+            }
+          },
+          include: { habit: true }
+        }),
+        prisma.journalEntry.findMany({
+          where: {
+            userId,
+            createdAt: {
+              gte: weekStart,
+              lt: weekEnd
+            }
+          }
+        })
+      ]);
+
+      // Calculate statistics
+      const stats = {
+        totalHabits: habits.length,
+        totalLogs: logs.length,
+        completedHabits: logs.filter(log => log.completionStatus === 'completed').length,
+        skippedHabits: logs.filter(log => log.completionStatus === 'skipped').length,
+        averageQuality: logs.filter(log => log.qualityRating).length > 0 ? 
+          logs.filter(log => log.qualityRating).reduce((sum, log) => sum + log.qualityRating!, 0) / 
+          logs.filter(log => log.qualityRating).length : 0,
+        journalEntries: journalEntries.length
+      };
+
+      // Group by habit
+      const habitStats = habits.map(habit => {
+        const habitLogs = logs.filter(log => log.habitId === habit.id);
+        const completed = habitLogs.filter(log => log.completionStatus === 'completed').length;
+        const total = habitLogs.length;
+        
+        return {
+          habitId: habit.id,
+          habitName: habit.name,
+          category: habit.category,
+          completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+          totalLogs: total,
+          averageQuality: habitLogs.filter(log => log.qualityRating).length > 0 ? 
+            habitLogs.filter(log => log.qualityRating).reduce((sum, log) => sum + log.qualityRating!, 0) / 
+            habitLogs.filter(log => log.qualityRating).length : 0
+        };
+      });
+
+      // Generate AI insights if available
+      let aiInsights = null;
+      let recommendations = ['Keep building your habit practice!'];
+      
+      if (anthropic && logs.length > 0) {
+        try {
+          const insightPrompt = `Analyze this week's habit tracking data and provide personalized insights:
+
+Week Summary:
+- Total habits tracked: ${stats.totalHabits}
+- Completion rate: ${Math.round((stats.completedHabits / stats.totalLogs) * 100)}%
+- Habits completed: ${stats.completedHabits}, skipped: ${stats.skippedHabits}
+- Average quality rating: ${stats.averageQuality.toFixed(1)}/5
+- Journal entries written: ${stats.journalEntries}
+
+Habit Performance:
+${habitStats.map(h => `- ${h.habitName} (${h.category}): ${h.completionRate}% completion, ${h.totalLogs} logs, ${h.averageQuality.toFixed(1)}/5 quality`).join('\n')}
+
+Recent journal themes: ${journalEntries.slice(0, 3).map(e => e.promptText).join('; ')}
+
+Provide analysis in JSON format:
+{
+  "key_achievements": ["achievement1", "achievement2"],
+  "challenges_faced": ["challenge1", "challenge2"],
+  "patterns_observed": ["pattern1", "pattern2"],
+  "personalized_recommendations": ["recommendation1", "recommendation2", "recommendation3"],
+  "motivational_message": "A personalized, encouraging message",
+  "focus_area_for_next_week": "Specific suggestion for improvement"
+}`;
+
+          const message = await anthropic.messages.create({
+            model: 'claude-3-haiku-20240307',
+            max_tokens: 500,
+            temperature: 0.7,
+            system: 'You are an insightful habit coach analyzing weekly progress. Be specific, actionable, and encouraging.',
+            messages: [{ role: 'user', content: insightPrompt }]
+          });
+
+          const responseText = message.content[0].type === 'text' ? message.content[0].text : '{}';
+          const aiAnalysis = JSON.parse(responseText);
+          
+          aiInsights = aiAnalysis;
+          recommendations = aiAnalysis.personalized_recommendations || recommendations;
+        } catch (error) {
+          console.error('AI weekly insights failed:', error);
+        }
+      }
 
       const insights = {
         weekStart: weekStart.toISOString().split('T')[0],
         weekEnd: weekEnd.toISOString().split('T')[0],
-        summary: {
-          totalHabits: 0,
-          totalLogs: 0,
-          completedHabits: 0,
-          skippedHabits: 0,
-          averageQuality: 0,
-          journalEntries: 0
-        },
-        habitBreakdown: [],
-        recommendations: ['Start by creating your first habit!']
+        summary: stats,
+        habitBreakdown: habitStats,
+        aiInsights,
+        recommendations
       };
 
       res.json({ insights });
