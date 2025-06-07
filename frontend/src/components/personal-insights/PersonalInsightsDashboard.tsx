@@ -369,7 +369,7 @@ const PersonalInsightsDashboard: React.FC<PersonalInsightsDashboardProps> = () =
                         <span className="font-medium capitalize">{selectedMoodEntry.mood}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Intensity:</span>
+                        <span className="text-sm text-gray-600">Mood Intensity:</span>
                         <span className="font-medium">{selectedMoodEntry.intensity}/10</span>
                       </div>
                       <div className="flex items-center justify-between">
@@ -498,7 +498,7 @@ const MoodLogModal: React.FC<MoodLogModalProps> = ({ onClose, onSubmit }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Intensity of Mood: {formData.intensity}/10
+              Mood Intensity: {formData.intensity}/10
             </label>
             <input
               type="range"
