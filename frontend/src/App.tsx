@@ -16,6 +16,7 @@ import TravelPlannerPage from './pages/TravelPlannerPage';
 import DocumentSummarizerPage from './pages/DocumentSummarizerPage';
 import DreamJournalPage from './pages/DreamJournalPage';
 import DocumentOrganizerPage from './pages/DocumentOrganizerPage';
+import JournalPage from './pages/JournalPage';
 import SmartHabitsPage from './pages/SmartHabitsPage';
 import PersonalInsightsPage from './pages/PersonalInsightsPage';
 import GamificationPage from './pages/GamificationPage';
@@ -67,6 +68,7 @@ function App() {
               <Route path="document-summarizer" element={<DocumentSummarizerPage />} />
               <Route path="dream-journal" element={<DreamJournalPage />} />
               <Route path="document-organizer" element={<DocumentOrganizerPage />} />
+              <Route path="journal" element={<JournalPage />} />
               <Route path="smart-habits" element={<SmartHabitsPage />} />
               <Route path="personal-insights" element={<PersonalInsightsPage />} />
               <Route path="gamification" element={<GamificationPage />} />

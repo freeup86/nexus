@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   PlusIcon,
   ChartBarIcon,
-  BookOpenIcon,
   UsersIcon,
   CalendarDaysIcon,
   BoltIcon,
@@ -13,11 +12,10 @@ import { habitService, Habit, HabitPrediction } from '../services/habitService';
 import HabitList from '../components/habits/HabitList';
 import TodayView from '../components/habits/TodayView';
 import AnalyticsDashboard from '../components/habits/AnalyticsDashboard';
-import JournalSection from '../components/habits/JournalSection';
 import CreateHabitModal from '../components/habits/CreateHabitModal';
 import CommunityHub from '../components/habits/CommunityHub';
 
-type ActiveTab = 'today' | 'habits' | 'analytics' | 'journal' | 'community';
+type ActiveTab = 'today' | 'habits' | 'analytics' | 'community';
 
 const SmartHabitsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
@@ -185,18 +183,6 @@ const SmartHabitsPage: React.FC = () => {
           </button>
           
           <button
-            onClick={() => setActiveTab('journal')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'journal'
-                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-          >
-            <BookOpenIcon className="w-5 h-5 inline-block mr-2" />
-            Journal
-          </button>
-          
-          <button
             onClick={() => setActiveTab('community')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'community'
@@ -232,10 +218,6 @@ const SmartHabitsPage: React.FC = () => {
         
         {activeTab === 'analytics' && (
           <AnalyticsDashboard habits={habits} />
-        )}
-        
-        {activeTab === 'journal' && (
-          <JournalSection habits={habits} />
         )}
         
         {activeTab === 'community' && (

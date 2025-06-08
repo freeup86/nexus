@@ -7,16 +7,20 @@ import {
   CalendarDaysIcon,
   ClockIcon,
   ChatBubbleBottomCenterTextIcon,
-  PencilIcon
+  PencilIcon,
+  SparklesIcon,
+  ArrowsRightLeftIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { Habit, JournalEntry, JournalPrompt, WeeklyInsights, habitService } from '../../services/habitService';
+import InteractiveJournal from './InteractiveJournal';
 
 interface JournalSectionProps {
   habits: Habit[];
 }
 
 const JournalSection: React.FC<JournalSectionProps> = ({ habits }) => {
+  const [useInteractiveJournal, setUseInteractiveJournal] = useState(true);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [prompts, setPrompts] = useState<JournalPrompt[]>([]);
   const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsights | null>(null);
@@ -130,24 +134,47 @@ const JournalSection: React.FC<JournalSectionProps> = ({ habits }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Mode Toggle */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Habit Journal
+            {useInteractiveJournal ? 'AI Journal Companion' : 'Habit Journal'}
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Reflect on your habits and track your journey
+            {useInteractiveJournal 
+              ? 'Interactive AI-powered journaling experience' 
+              : 'Reflect on your habits and track your journey'
+            }
           </p>
         </div>
-        <button
-          onClick={() => setShowNewEntryForm(true)}
-          className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          <PlusIcon className="w-5 h-5 mr-2" />
-          New Entry
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setUseInteractiveJournal(!useInteractiveJournal)}
+            className="flex items-center px-3 py-2 text-sm bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            <ArrowsRightLeftIcon className="w-4 h-4 mr-1" />
+            {useInteractiveJournal ? 'Classic View' : 'AI Mode'}
+          </button>
+          {!useInteractiveJournal && (
+            <button
+              onClick={() => setShowNewEntryForm(true)}
+              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <PlusIcon className="w-5 h-5 mr-2" />
+              New Entry
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Interactive Journal Mode */}
+      {useInteractiveJournal && (
+        <InteractiveJournal />
+      )}
+
+      {/* Classic Journal Mode */}
+      {!useInteractiveJournal && (
+        <div className="space-y-6">
 
       {/* Weekly Insights */}
       {weeklyInsights && (
@@ -412,6 +439,8 @@ const JournalSection: React.FC<JournalSectionProps> = ({ habits }) => {
               </div>
             </div>
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>

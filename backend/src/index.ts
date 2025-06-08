@@ -25,6 +25,8 @@ import gamificationRoutes from './routes/gamificationRoutes';
 
 // Smart Habits routes
 import habitRoutes from './routes/habitRoutes';
+import habitJournalRoutes from './routes/habitJournalRoutes';
+import enhancedJournalRoutes from './routes/enhancedJournalRoutes';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -144,6 +146,8 @@ app.use('/api/gamification', authenticateToken, gamificationRoutes);
 
 // Smart Habits API Routes
 app.use('/api/habits', authenticateToken, habitRoutes);
+app.use('/api/habits/journal', authenticateToken, habitJournalRoutes);
+app.use('/api/journal', authenticateToken, enhancedJournalRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

@@ -17,7 +17,8 @@ import {
   FolderIcon,
   BoltIcon,
   ChartBarIcon,
-  TrophyIcon
+  TrophyIcon,
+  BookOpenIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -36,6 +37,7 @@ const navigation = [
   { name: 'DIY Projects', href: '/diy-projects', icon: WrenchScrewdriverIcon },
   { name: 'Travel Planner', href: '/travel-planner', icon: GlobeAltIcon },
   { name: 'Dream Journal', href: '/dream-journal', icon: MoonIcon },
+  { name: 'AI Journal', href: '/journal', icon: BookOpenIcon },
   { name: 'Smart Habits', href: '/smart-habits', icon: BoltIcon },
   { name: 'Personal Insights', href: '/personal-insights', icon: ChartBarIcon },
   { name: 'Progress & Rewards', href: '/gamification', icon: TrophyIcon },

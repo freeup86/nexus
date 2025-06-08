@@ -3,6 +3,7 @@ import { PrismaClient } from '../generated/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { body, param, query, validationResult } from 'express-validator';
 import Anthropic from '@anthropic-ai/sdk';
+import { awardXP, updateStreak } from '../utils/gamificationHelper';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -67,6 +68,16 @@ router.post('/',
           reminderEnabled: req.body.reminderEnabled ?? true
         }
       });
+
+      // Check if this is the user's first habit and award XP
+      try {
+        const habitCount = await prisma.habit.count({ where: { userId } });
+        if (habitCount === 1) {
+          await awardXP(userId, 50, 'Created first habit');
+        }
+      } catch (error) {
+        console.error('Error awarding first habit XP:', error);
+      }
 
       res.status(201).json({ habit });
     } catch (error) {
@@ -462,7 +473,40 @@ router.post('/:habitId/log',
         }
       });
 
-      res.status(201).json({ log });
+      // Award XP and update streaks for completed habits
+      let gamificationResult = null;
+      if (req.body.completionStatus === 'completed') {
+        try {
+          // Award XP based on quality rating
+          let xpAmount = 10; // Base XP for habit completion
+          if (req.body.qualityRating) {
+            xpAmount += (req.body.qualityRating - 1) * 5; // Bonus XP for higher quality
+          }
+
+          // Award XP
+          const xpResult = await awardXP(userId, xpAmount, `Completed habit: ${habit.name}`);
+          
+          // Update habit-specific streak
+          const streakResult = await updateStreak(userId, 'habit_specific', req.params.habitId);
+          
+          // Update general habits streak
+          const generalStreakResult = await updateStreak(userId, 'overall_habits');
+
+          gamificationResult = {
+            xp: xpResult,
+            habitStreak: streakResult,
+            generalStreak: generalStreakResult
+          };
+        } catch (error) {
+          console.error('Error updating gamification data:', error);
+          // Continue without failing the habit log creation
+        }
+      }
+
+      res.status(201).json({ 
+        log,
+        gamification: gamificationResult
+      });
     } catch (error) {
       console.error('Log habit error:', error);
       res.status(500).json({ error: 'Failed to log habit' });

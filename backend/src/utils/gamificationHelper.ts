@@ -221,6 +221,31 @@ async function calculateAchievementProgress(userId: string, achievement: any): P
         const cutoffDate = new Date('2025-12-31');
         return user.createdAt <= cutoffDate ? 1 : 0;
         
+      // Additional habit achievements that might be added
+      case 'habit_perfectionist':
+        // Check if user has completed habits with 5-star rating 10 times
+        const perfectHabits = await prisma.habitLog.count({
+          where: { userId, completionStatus: 'completed', qualityRating: 5 }
+        });
+        return Math.min(perfectHabits / 10, 1);
+        
+      case 'habit_consistent':
+        // Check if user has overall habit streak of 14 days
+        const overallStreaks = await prisma.streak.findMany({
+          where: { userId, type: 'overall_habits' }
+        });
+        const maxOverallStreak = Math.max(...overallStreaks.map(s => s.currentStreak), 0);
+        return Math.min(maxOverallStreak / 14, 1);
+        
+      case 'habit_diversity':
+        // Check if user has created habits in 5 different categories
+        const categories = await prisma.habit.findMany({
+          where: { userId },
+          select: { category: true },
+          distinct: ['category']
+        });
+        return Math.min(categories.length / 5, 1);
+        
       default:
         return 0;
     }

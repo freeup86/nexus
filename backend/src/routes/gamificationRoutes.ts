@@ -342,6 +342,19 @@ async function calculateAchievementProgress(userId: string, achievement: any): P
   const requirement = achievement.requirement;
   
   switch (achievement.code) {
+    case 'first_habit':
+      const habitCount = await prisma.habit.count({
+        where: { userId }
+      });
+      return Math.min(habitCount / 1, 1);
+      
+    case 'habit_streak_3':
+      const streaks3 = await prisma.streak.findMany({
+        where: { userId, type: 'habit_specific' }
+      });
+      const maxStreak3 = Math.max(...streaks3.map(s => s.currentStreak), 0);
+      return Math.min(maxStreak3 / 3, 1);
+      
     case 'habit_streak_7':
       const streaks = await prisma.streak.findMany({
         where: { userId, type: 'habit_specific' }
@@ -349,17 +362,48 @@ async function calculateAchievementProgress(userId: string, achievement: any): P
       const maxStreak = Math.max(...streaks.map(s => s.currentStreak), 0);
       return Math.min(maxStreak / 7, 1);
       
+    case 'habit_streak_30':
+      const streaks30 = await prisma.streak.findMany({
+        where: { userId, type: 'habit_specific' }
+      });
+      const maxStreak30 = Math.max(...streaks30.map(s => s.currentStreak), 0);
+      return Math.min(maxStreak30 / 30, 1);
+      
+    case 'mood_logger_1':
+      const moodCount1 = await prisma.moodEntry.count({
+        where: { userId }
+      });
+      return Math.min(moodCount1 / 1, 1);
+      
     case 'mood_logger_30':
       const moodCount = await prisma.moodEntry.count({
         where: { userId }
       });
       return Math.min(moodCount / 30, 1);
       
+    case 'dream_journal_1':
+      const dreamCount1 = await prisma.dream.count({
+        where: { userId }
+      });
+      return Math.min(dreamCount1 / 1, 1);
+      
     case 'dream_journal_10':
       const dreamCount = await prisma.dream.count({
         where: { userId }
       });
       return Math.min(dreamCount / 10, 1);
+      
+    case 'decision_maker':
+      const decisionCount = await prisma.decision.count({
+        where: { userId }
+      });
+      return Math.min(decisionCount / 1, 1);
+      
+    case 'insight_seeker':
+      const insightCount = await prisma.personalInsight.count({
+        where: { userId }
+      });
+      return Math.min(insightCount / 1, 1);
       
     case 'early_adopter':
       const user = await prisma.user.findUnique({ 
@@ -370,6 +414,61 @@ async function calculateAchievementProgress(userId: string, achievement: any): P
       
       const cutoffDate = new Date('2025-12-31');
       return user.createdAt <= cutoffDate ? 1 : 0;
+      
+    // AI Journal achievements
+    case 'journal_sessions_10':
+      const sessionCount = await prisma.journalEntry.count({
+        where: { 
+          userId,
+          isConversational: true
+        }
+      });
+      return Math.min(sessionCount / 10, 1);
+      
+    case 'journal_sessions_50':
+      const sessionCount50 = await prisma.journalEntry.count({
+        where: { 
+          userId,
+          isConversational: true
+        }
+      });
+      return Math.min(sessionCount50 / 50, 1);
+      
+    case 'morning_checkins_7':
+      const morningCount = await prisma.checkInSession.count({
+        where: {
+          userId,
+          sessionType: 'morning'
+        }
+      });
+      return Math.min(morningCount / 7, 1);
+      
+    case 'journal_streak_14':
+      const journalStreaks = await prisma.journalStreak.findMany({
+        where: { userId }
+      });
+      const maxJournalStreak = Math.max(...journalStreaks.map(s => s.currentStreak), 0);
+      return Math.min(maxJournalStreak / 14, 1);
+      
+    case 'mood_tracker_expert':
+      const weeklyMoodData = await prisma.moodEntry.count({
+        where: {
+          userId,
+          recordedAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+          }
+        }
+      });
+      return weeklyMoodData >= 7 ? 1 : Math.min(weeklyMoodData / 7, 1);
+      
+    case 'thoughtful_journaler':
+      const longEntries = await prisma.journalEntry.count({
+        where: {
+          userId,
+          wordCount: { gte: 250 }
+        }
+      });
+      return Math.min(longEntries / 5, 1);
       
     default:
       return 0;

@@ -107,8 +107,10 @@ const DreamJournal: React.FC = () => {
   };
 
   const handleEditDream = (dream: Dream) => {
+    console.log('Editing dream:', dream);
     setEditingDream(dream);
     setShowForm(true);
+    console.log('Form should now be visible - showForm:', true, 'editingDream:', dream);
   };
 
   const getMoodIcon = (mood?: string) => {
@@ -371,12 +373,20 @@ const DreamJournal: React.FC = () => {
           <DreamForm
             open={showForm}
             onClose={() => {
+              console.log('Closing form');
               setShowForm(false);
               setEditingDream(null);
             }}
             onSave={handleSaveDream}
             dream={editingDream}
           />
+        )}
+        
+        {/* Debug info */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="fixed bottom-20 left-4 bg-black text-white p-2 text-xs">
+            showForm: {showForm.toString()}, editingDream: {editingDream?.id || 'null'}
+          </div>
         )}
 
         {selectedDream && (

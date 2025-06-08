@@ -43,6 +43,7 @@
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.9.1",
     "multer": "^2.0.0",
+    "node-fetch": "^2.7.0",
     "nodemon": "^3.1.10",
     "openai": "^4.103.0",
     "pdf-parse": "^1.1.1",
