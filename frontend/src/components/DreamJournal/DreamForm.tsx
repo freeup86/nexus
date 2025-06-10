@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   XMarkIcon,
   MicrophoneIcon,
@@ -38,6 +38,7 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream, sav
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recognition, setRecognition] = useState<any>(null);
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (dream) {
@@ -51,6 +52,15 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream, sav
       setTags(dream.tags?.map(t => t.tag) || []);
     }
   }, [dream]);
+
+  useEffect(() => {
+    // Cleanup timeout on unmount
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Check if browser supports speech recognition
@@ -76,7 +86,48 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream, sav
 
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
-        setError('Speech recognition error: ' + event.error);
+        setIsRecording(false);
+        
+        // Handle different error types with user-friendly messages
+        let errorMessage = '';
+        let shouldAutoDismiss = false;
+        
+        switch (event.error) {
+          case 'network':
+            errorMessage = 'Network error: Please check your internet connection and try again.';
+            shouldAutoDismiss = true;
+            break;
+          case 'not-allowed':
+            errorMessage = 'Microphone access denied. Please allow microphone access and try again.';
+            break;
+          case 'no-speech':
+            errorMessage = 'No speech detected. Please try speaking again.';
+            shouldAutoDismiss = true;
+            break;
+          case 'aborted':
+            errorMessage = 'Speech recognition was interrupted. Please try again.';
+            shouldAutoDismiss = true;
+            break;
+          default:
+            errorMessage = `Speech recognition error: ${event.error}. Please try again.`;
+            shouldAutoDismiss = true;
+        }
+        
+        setError(errorMessage);
+        
+        // Auto-dismiss non-critical errors after 5 seconds
+        if (shouldAutoDismiss) {
+          if (errorTimeoutRef.current) {
+            clearTimeout(errorTimeoutRef.current);
+          }
+          errorTimeoutRef.current = setTimeout(() => {
+            setError(null);
+          }, 5000);
+        }
+      };
+      
+      recognition.onend = () => {
+        // Ensure recording state is updated when recognition ends
         setIsRecording(false);
       };
 
@@ -86,17 +137,40 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream, sav
 
   const toggleRecording = () => {
     if (!recognition) {
-      setError('Speech recognition is not supported in your browser');
+      setError('Speech recognition is not supported in your browser. Try using Chrome or Edge.');
       return;
     }
 
     if (isRecording) {
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch (err) {
+        console.error('Error stopping recognition:', err);
+      }
       setIsRecording(false);
     } else {
-      recognition.start();
-      setIsRecording(true);
-      setError(null);
+      try {
+        setError(null);
+        recognition.start();
+        setIsRecording(true);
+      } catch (err: any) {
+        console.error('Error starting recognition:', err);
+        setIsRecording(false);
+        if (err.message.includes('already started')) {
+          // If already started, stop and retry
+          try {
+            recognition.stop();
+            setTimeout(() => {
+              recognition.start();
+              setIsRecording(true);
+            }, 100);
+          } catch (retryErr) {
+            setError('Unable to start voice recording. Please refresh and try again.');
+          }
+        } else {
+          setError('Unable to start voice recording. Please check your microphone permissions.');
+        }
+      }
     }
   };
 
@@ -115,7 +189,7 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream, sav
       lucidity,
       clarity,
       emotions: emotions.length > 0 ? emotions : undefined,
-      tags: tags.length > 0 ? tags : undefined,
+      tags: tags, // Always send tags array, even if empty, to ensure removal works
     };
 
     try {

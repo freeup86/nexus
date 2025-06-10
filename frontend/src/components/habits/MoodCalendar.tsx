@@ -79,35 +79,28 @@ const MoodCalendar: React.FC<MoodCalendarProps> = ({ className }) => {
     return monthlyData.dailyMoods[dateKey] || null;
   };
 
-  const getMoodColor = (moodData: any) => {
-    if (!moodData) return 'bg-gray-100 dark:bg-gray-700';
-    
-    const mood = moodData.dominantMood;
-    const intensity = moodData.avgIntensity;
-    
-    const baseColors: { [key: string]: string } = {
-      'very_happy': 'bg-green-500',
-      'happy': 'bg-green-400',
-      'content': 'bg-green-300',
-      'neutral': 'bg-gray-400',
-      'tired': 'bg-blue-400',
-      'stressed': 'bg-orange-400',
-      'anxious': 'bg-red-400',
-      'sad': 'bg-blue-500',
-      'angry': 'bg-red-500',
-      'overwhelmed': 'bg-red-600'
-    };
+  const getMoodEmoji = (moodData: any) => {
+    if (!moodData) return null;
+    return journalHelpers.getMoodEmoji(moodData.dominantMood);
+  };
 
-    let color = baseColors[mood] || 'bg-gray-400';
+  const getBackgroundColor = (moodData: any, isSelected: boolean, isToday: boolean) => {
+    let baseColor = 'bg-gray-50 dark:bg-gray-700';
     
-    // Adjust opacity based on intensity
-    if (intensity <= 3) {
-      color = color.replace('500', '200').replace('400', '200').replace('300', '100');
-    } else if (intensity <= 6) {
-      color = color.replace('500', '400').replace('400', '300');
+    if (moodData) {
+      // Light background when there's mood data
+      baseColor = 'bg-blue-50 dark:bg-blue-900/20';
     }
     
-    return color;
+    if (isSelected) {
+      baseColor = 'bg-blue-100 dark:bg-blue-800/50';
+    }
+    
+    if (isToday) {
+      baseColor = 'bg-indigo-100 dark:bg-indigo-900/30';
+    }
+    
+    return baseColor;
   };
 
   const formatMonthYear = () => {
@@ -172,7 +165,7 @@ const MoodCalendar: React.FC<MoodCalendarProps> = ({ className }) => {
 
       {/* Month Stats */}
       {monthlyData && (
-        <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+        <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <div className="text-center">
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {monthlyData.monthStats.totalDays}
@@ -180,16 +173,10 @@ const MoodCalendar: React.FC<MoodCalendarProps> = ({ className }) => {
             <p className="text-xs text-gray-500 dark:text-gray-400">Days Tracked</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {monthlyData.monthStats.avgMoodIntensity.toFixed(1)}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Avg Intensity</p>
-          </div>
-          <div className="text-center">
             <p className="text-2xl">
               {journalHelpers.getMoodEmoji(monthlyData.monthStats.mostCommonMood)}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Most Common</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Most Common Mood</p>
           </div>
         </div>
       )}
@@ -206,28 +193,38 @@ const MoodCalendar: React.FC<MoodCalendarProps> = ({ className }) => {
         {/* Calendar days */}
         {getDaysInMonth().map((day, index) => {
           if (!day) {
-            return <div key={index} className="p-2 h-10"></div>;
+            return <div key={index} className="p-2 h-12"></div>;
           }
 
           const moodData = getDayMoodData(day);
           const isSelected = selectedDay === day.toString();
           const todayClass = isToday(day) ? 'ring-2 ring-indigo-500' : '';
 
+          const moodEmoji = getMoodEmoji(moodData);
+          const backgroundColor = getBackgroundColor(moodData, isSelected, isToday(day));
+
           return (
             <button
               key={day}
               onClick={() => setSelectedDay(isSelected ? null : day.toString())}
               className={`
-                relative h-10 p-1 rounded-lg text-sm font-medium transition-all duration-200
-                ${getMoodColor(moodData)}
-                ${isSelected ? 'ring-2 ring-blue-500 scale-110' : 'hover:scale-105'}
-                ${todayClass}
-                ${moodData ? 'text-white shadow-sm' : 'text-gray-900 dark:text-white'}
+                relative h-12 p-1 rounded-lg text-sm font-medium transition-all duration-200 flex flex-col items-center justify-center
+                ${backgroundColor}
+                ${isSelected ? 'ring-2 ring-blue-500 scale-105' : 'hover:scale-105'}
+                ${isToday(day) ? 'ring-2 ring-indigo-500' : ''}
+                text-gray-900 dark:text-white shadow-sm hover:shadow-md
               `}
             >
-              <span className="relative z-10">{day}</span>
-              {moodData && (
-                <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full opacity-80">
+              {moodEmoji ? (
+                <>
+                  <span className="text-lg leading-none mb-0.5">{moodEmoji}</span>
+                  <span className="text-xs leading-none">{day}</span>
+                </>
+              ) : (
+                <span className="text-sm">{day}</span>
+              )}
+              {moodData && moodData.count > 1 && (
+                <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-500 rounded-full">
                   <span className="sr-only">{moodData.count} entries</span>
                 </div>
               )}
@@ -253,12 +250,6 @@ const MoodCalendar: React.FC<MoodCalendarProps> = ({ className }) => {
                   {selectedDayData.dominantMood?.replace('_', ' ')}
                 </span>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Intensity:</span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                {selectedDayData.avgIntensity.toFixed(1)}/10
-              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600 dark:text-gray-400">Entries:</span>
@@ -291,15 +282,19 @@ const MoodCalendar: React.FC<MoodCalendarProps> = ({ className }) => {
         <div className="flex items-center space-x-4 text-xs">
           <div className="flex items-center">
             <div className="w-3 h-3 bg-gray-200 dark:bg-gray-600 rounded mr-1"></div>
-            <span className="text-gray-600 dark:text-gray-400">No data</span>
+            <span className="text-gray-600 dark:text-gray-400">No mood data</span>
           </div>
           <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-200 rounded mr-1"></div>
-            <span className="text-gray-600 dark:text-gray-400">Low intensity</span>
+            <span className="text-sm mr-1">😊</span>
+            <span className="text-gray-600 dark:text-gray-400">Mood emoji + day</span>
           </div>
           <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
-            <span className="text-gray-600 dark:text-gray-400">High intensity</span>
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1"></div>
+            <span className="text-gray-600 dark:text-gray-400">Multiple entries</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 border-2 border-indigo-500 rounded mr-1"></div>
+            <span className="text-gray-600 dark:text-gray-400">Today</span>
           </div>
         </div>
       </div>

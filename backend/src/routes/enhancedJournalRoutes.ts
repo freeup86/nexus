@@ -689,7 +689,10 @@ router.get('/entries',
       const offset = parseInt(req.query.offset as string) || 0;
 
       const entries = await prisma.journalEntry.findMany({
-        where: { userId },
+        where: { 
+          userId,
+          promptType: 'interactive'  // Only show enhanced journal entries
+        },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
@@ -711,10 +714,12 @@ router.get('/entries',
       });
 
       const totalCount = await prisma.journalEntry.count({
-        where: { userId }
+        where: { 
+          userId,
+          promptType: 'interactive'  // Only count enhanced journal entries
+        }
       });
 
-      console.log(`User ${userId} - Found ${entries.length} entries out of ${totalCount} total`);
 
       res.json({ 
         entries,
@@ -724,6 +729,47 @@ router.get('/entries',
     } catch (error) {
       console.error('Get journal entries error:', error);
       res.status(500).json({ error: 'Failed to get journal entries' });
+    }
+  }
+);
+
+// Delete journal entry
+router.delete('/entries/:entryId',
+  [param('entryId').isLength({ min: 1 })],
+  validateRequest,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      // First check if entry exists and belongs to user
+      const entry = await prisma.journalEntry.findFirst({
+        where: {
+          id: req.params.entryId,
+          userId
+        }
+      });
+
+      if (!entry) {
+        res.status(404).json({ error: 'Journal entry not found' });
+        return;
+      }
+
+      // Delete the entry
+      await prisma.journalEntry.delete({
+        where: {
+          id: req.params.entryId
+        }
+      });
+
+      console.log(`User ${userId} deleted journal entry ${req.params.entryId}`);
+      res.json({ message: 'Journal entry deleted successfully' });
+    } catch (error) {
+      console.error('Delete journal entry error:', error);
+      res.status(500).json({ error: 'Failed to delete journal entry' });
     }
   }
 );
@@ -744,7 +790,10 @@ function getMostCommonValue(arr: any[]): any {
 async function getUserContext(userId: string) {
   const [recentEntries, recentMoods, activeGoals] = await Promise.all([
     prisma.journalEntry.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        promptType: 'interactive'  // Only use enhanced journal entries for context
+      },
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: {
@@ -775,7 +824,7 @@ async function getUserContext(userId: string) {
   const recentAccomplishments: string[] = [];
   
   recentEntries.forEach(entry => {
-    if (entry.aiAnalysis) {
+    if (entry.aiAnalysis && typeof entry.aiAnalysis === 'string') {
       try {
         const analysis = JSON.parse(entry.aiAnalysis);
         if (analysis.key_themes) recentThemes.push(...analysis.key_themes);
@@ -1186,7 +1235,8 @@ async function generateWeeklyInsights(userId: string) {
     prisma.journalEntry.findMany({
       where: {
         userId,
-        createdAt: { gte: weekStart }
+        createdAt: { gte: weekStart },
+        promptType: 'interactive'  // Only count enhanced journal entries
       }
     }),
     prisma.moodEntry.findMany({
@@ -1200,8 +1250,6 @@ async function generateWeeklyInsights(userId: string) {
     })
   ]);
 
-  console.log(`Weekly insights for user ${userId}: ${entries.length} entries in past 7 days`);
-  console.log('Entry types:', entries.map(e => e.entryType));
 
   return {
     weekSummary: {

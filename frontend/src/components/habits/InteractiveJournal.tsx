@@ -11,7 +11,8 @@ import {
   XMarkIcon,
   FaceSmileIcon,
   CheckCircleIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { 
@@ -50,6 +51,8 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
   const [goals, setGoals] = useState<JournalGoal[]>([]);
   const [journalEntries, setJournalEntries] = useState<any[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [entriesFilter, setEntriesFilter] = useState<'all' | 'week'>('all');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check-in form state
@@ -71,6 +74,12 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
   useEffect(() => {
     scrollToBottom();
   }, [conversation]);
+
+  useEffect(() => {
+    if (showEntries) {
+      loadJournalEntries(entriesFilter);
+    }
+  }, [entriesFilter, showEntries]);
 
   const loadInitialData = async () => {
     try {
@@ -115,6 +124,84 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
       toast.error('Failed to load journal data');
     } finally {
       setIsInitialLoading(false);
+    }
+  };
+
+  const refreshWeeklyInsights = async () => {
+    try {
+      const insightsResponse = await journalService.getWeeklyInsights();
+      setWeeklyInsights(insightsResponse);
+    } catch (error) {
+      console.error('Failed to refresh weekly insights:', error);
+      // Don't show error toast for insights refresh as it's not critical
+    }
+  };
+
+  const loadJournalEntries = async (filter: 'all' | 'week' = 'all') => {
+    try {
+      let entriesResponse;
+      if (filter === 'week') {
+        // For weekly filter, we'll filter client-side for now
+        // In a production app, you'd want to add a date filter to the API
+        const allEntries = await journalService.getJournalEntries({ limit: 50 });
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - 7);
+        
+        if (allEntries && allEntries.entries) {
+          const weeklyEntries = allEntries.entries.filter(entry => 
+            new Date(entry.createdAt) >= weekStart
+          );
+          entriesResponse = { entries: weeklyEntries, totalCount: weeklyEntries.length, hasMore: false };
+        } else {
+          entriesResponse = { entries: [], totalCount: 0, hasMore: false };
+        }
+      } else {
+        entriesResponse = await journalService.getJournalEntries({ limit: 10 });
+      }
+
+      if (entriesResponse && entriesResponse.entries) {
+        setJournalEntries(entriesResponse.entries);
+      } else if (Array.isArray(entriesResponse)) {
+        setJournalEntries(entriesResponse);
+      } else {
+        setJournalEntries([]);
+      }
+    } catch (error) {
+      console.error('Failed to load journal entries:', error);
+      // Fallback to legacy entries
+      try {
+        const legacyEntries = await journalService.getHabitJournalEntries({ limit: 10 });
+        setJournalEntries(legacyEntries || []);
+      } catch (legacyError) {
+        setJournalEntries([]);
+      }
+    }
+  };
+
+  const deleteJournalEntry = async (entryId: string) => {
+    if (!window.confirm('Are you sure you want to delete this journal entry? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setDeletingEntryId(entryId);
+      await journalService.deleteJournalEntry(entryId);
+      
+      // Remove the deleted entry from the local state
+      setJournalEntries(prev => prev.filter(entry => entry.id !== entryId));
+      
+      // Refresh weekly insights and reload entries with current filter
+      await Promise.all([
+        refreshWeeklyInsights(),
+        loadJournalEntries(entriesFilter)
+      ]);
+      
+      toast.success('Journal entry deleted successfully');
+    } catch (error: any) {
+      console.error('Failed to delete journal entry:', error);
+      toast.error(error.response?.data?.error || 'Failed to delete journal entry');
+    } finally {
+      setDeletingEntryId(null);
     }
   };
 
@@ -262,6 +349,9 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
           duration: 5000
         });
       }
+
+      // Refresh insights since we added a new entry
+      await refreshWeeklyInsights();
 
     } catch (error: any) {
       console.error('Failed to complete check-in:', error);
@@ -468,7 +558,7 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <p className="text-purple-100 text-sm">Total Entries</p>
+              <p className="text-purple-100 text-sm">Entries (7 days)</p>
               <p className="text-2xl font-bold">{weeklyInsights.weekSummary.totalEntries}</p>
             </div>
             <div>
@@ -773,6 +863,31 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
                 </button>
               </div>
 
+              {/* Filter Buttons */}
+              <div className="flex items-center space-x-2 mb-6">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show:</span>
+                <button
+                  onClick={() => setEntriesFilter('all')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    entriesFilter === 'all'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  All Entries
+                </button>
+                <button
+                  onClick={() => setEntriesFilter('week')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    entriesFilter === 'week'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  This Week ({weeklyInsights?.weekSummary.totalEntries || 0})
+                </button>
+              </div>
+
               <div className="space-y-4">
                 {journalEntries.length === 0 ? (
                   <div className="text-center py-8">
@@ -831,6 +946,19 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
                             <span>{Math.floor(entry.sessionDuration / 60)} min</span>
                           )}
                         </div>
+                        <button
+                          onClick={() => deleteJournalEntry(entry.id)}
+                          disabled={deletingEntryId === entry.id}
+                          className="flex items-center space-x-1 text-red-500 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed p-1 rounded transition-colors"
+                          title="Delete entry"
+                        >
+                          {deletingEntryId === entry.id ? (
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-red-500"></div>
+                          ) : (
+                            <TrashIcon className="h-3 w-3" />
+                          )}
+                          <span className="text-xs">Delete</span>
+                        </button>
                       </div>
                     </div>
                   ))

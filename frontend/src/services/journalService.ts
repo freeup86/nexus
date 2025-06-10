@@ -232,6 +232,17 @@ export const journalService = {
     }
   },
 
+  // Delete journal entry
+  deleteJournalEntry: async (entryId: string): Promise<void> => {
+    try {
+      await api.delete(`/journal/entries/${entryId}`);
+      console.log('Journal entry deleted:', entryId);
+    } catch (error) {
+      console.error('Error deleting journal entry:', error);
+      throw error;
+    }
+  },
+
   // ============== LEGACY HABIT JOURNAL ENDPOINTS ==============
   
   // Get today's prompts (from habit journal)
