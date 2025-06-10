@@ -23,6 +23,7 @@ import DreamVisualization from './DreamVisualization';
 const DreamJournal: React.FC = () => {
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDream, setSelectedDream] = useState<Dream | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -77,6 +78,8 @@ const DreamJournal: React.FC = () => {
 
   const handleSaveDream = async (dreamData: any) => {
     try {
+      setSaving(true);
+      setError(null);
       if (editingDream) {
         await dreamService.updateDream(editingDream.id, dreamData);
       } else {
@@ -88,6 +91,9 @@ const DreamJournal: React.FC = () => {
       setEditingDream(null);
     } catch (err: any) {
       setError(err.message);
+      throw err; // Re-throw to let DreamForm handle it
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -376,9 +382,12 @@ const DreamJournal: React.FC = () => {
               console.log('Closing form');
               setShowForm(false);
               setEditingDream(null);
+              setError(null);
             }}
             onSave={handleSaveDream}
             dream={editingDream}
+            saving={saving}
+            error={error}
           />
         )}
         

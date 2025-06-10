@@ -222,8 +222,14 @@ export const journalService = {
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.offset) params.append('offset', options.offset.toString());
     
-    const response = await api.get(`/journal/entries?${params}`);
-    return response.data;
+    try {
+      const response = await api.get(`/journal/entries?${params}`);
+      console.log('Journal entries API response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching journal entries:', error);
+      throw error;
+    }
   },
 
   // ============== LEGACY HABIT JOURNAL ENDPOINTS ==============

@@ -48,6 +48,7 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
   const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsights | null>(null);
   const [goals, setGoals] = useState<JournalGoal[]>([]);
   const [journalEntries, setJournalEntries] = useState<any[]>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check-in form state
@@ -72,12 +73,21 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
 
   const loadInitialData = async () => {
     try {
+      setIsInitialLoading(true);
       const [insightsResponse, goalsResponse, entriesResponse] = await Promise.all([
         journalService.getWeeklyInsights().catch(() => null),
         journalService.getGoals().catch(() => []),
-        journalService.getJournalEntries({ limit: 10 }).catch((error) => {
+        journalService.getJournalEntries({ limit: 10 }).catch(async (error) => {
           console.error('Failed to load journal entries:', error);
-          return { entries: [], totalCount: 0, hasMore: false };
+          // Try legacy habit journal entries as fallback
+          try {
+            const legacyEntries = await journalService.getHabitJournalEntries({ limit: 10 });
+            console.log('Using legacy habit journal entries:', legacyEntries);
+            return { entries: legacyEntries || [], totalCount: legacyEntries?.length || 0, hasMore: false };
+          } catch (legacyError) {
+            console.error('Failed to load legacy entries too:', legacyError);
+            return { entries: [], totalCount: 0, hasMore: false };
+          }
         })
       ]);
       
@@ -89,9 +99,21 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
       
       setWeeklyInsights(insightsResponse);
       setGoals(Array.isArray(goalsResponse) ? goalsResponse : []);
-      setJournalEntries(entriesResponse?.entries || []);
+      
+      // Ensure we have the correct structure for entries
+      if (entriesResponse && entriesResponse.entries) {
+        setJournalEntries(entriesResponse.entries);
+      } else if (Array.isArray(entriesResponse)) {
+        // Handle if API returns array directly
+        setJournalEntries(entriesResponse);
+      } else {
+        setJournalEntries([]);
+      }
     } catch (error) {
       console.error('Failed to load initial data:', error);
+      toast.error('Failed to load journal data');
+    } finally {
+      setIsInitialLoading(false);
     }
   };
 
@@ -554,22 +576,37 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
       )}
 
       {/* No Active Session */}
-      {!activeSession && !showSessionStart && (
+      {!activeSession && !showSessionStart && !isInitialLoading && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
           <SparklesIcon className="mx-auto h-16 w-16 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
             Ready to start journaling?
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Begin an AI-guided conversation to explore your thoughts and feelings
+            {journalEntries.length > 0 
+              ? `You have ${journalEntries.length} journal entries. Continue your journey with a new session.`
+              : 'Begin an AI-guided conversation to explore your thoughts and feelings'
+            }
           </p>
           <button
             onClick={() => setShowSessionStart(true)}
             className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
           >
             <SparklesIcon className="w-5 h-5 mr-2" />
-            Start Your First Session
+            {journalEntries.length > 0 ? 'Start New Session' : 'Start Your First Session'}
           </button>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {!activeSession && !showSessionStart && isInitialLoading && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
+          <div className="animate-pulse">
+            <div className="mx-auto h-16 w-16 bg-gray-200 dark:bg-gray-700 rounded-full mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mx-auto mb-2"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto mb-6"></div>
+            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-40 mx-auto"></div>
+          </div>
         </div>
       )}
 

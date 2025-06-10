@@ -9,8 +9,10 @@ import { Dream } from '../../types/dream';
 interface DreamFormProps {
   open: boolean;
   onClose: () => void;
-  onSave: (dreamData: any) => void;
+  onSave: (dreamData: any) => Promise<void>;
   dream?: Dream | null;
+  saving?: boolean;
+  error?: string | null;
 }
 
 const moods = [
@@ -23,7 +25,7 @@ const commonEmotions = [
   'Anxiety', 'Peace', 'Confusion', 'Wonder', 'Loneliness'
 ];
 
-const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream }) => {
+const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream, saving = false, error: parentError }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [dreamDate, setDreamDate] = useState(new Date().toISOString().slice(0, 16));
@@ -98,7 +100,7 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream }) =
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) {
       setError('Please provide both title and content');
@@ -116,7 +118,12 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream }) =
       tags: tags.length > 0 ? tags : undefined,
     };
 
-    onSave(dreamData);
+    try {
+      setError(null);
+      await onSave(dreamData);
+    } catch (err: any) {
+      // Error is already handled by parent, just prevent form close
+    }
   };
 
   const handleAddTag = () => {
@@ -162,9 +169,9 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream }) =
                 {dream ? 'Edit Dream' : 'Record New Dream'}
               </h3>
               <div className="mt-4">
-                {error && (
+                {(error || parentError) && (
                   <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-sm text-red-800">{error}</p>
+                    <p className="text-sm text-red-800">{error || parentError}</p>
                   </div>
                 )}
 
@@ -179,7 +186,8 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream }) =
                       required
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                      disabled={saving}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
 
@@ -195,7 +203,8 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream }) =
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
                         placeholder="Describe your dream in detail..."
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                        disabled={saving}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
@@ -336,9 +345,20 @@ const DreamForm: React.FC<DreamFormProps> = ({ open, onClose, onSave, dream }) =
             <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
               <button
                 type="submit"
-                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:col-start-2 sm:text-sm"
+                disabled={saving}
+                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {dream ? 'Update' : 'Save'} Dream
+                {saving ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>{dream ? 'Update' : 'Save'} Dream</>
+                )}
               </button>
               <button
                 type="button"
