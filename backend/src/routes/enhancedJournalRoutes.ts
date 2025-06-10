@@ -130,12 +130,16 @@ router.post('/session/:sessionId/respond',
         timestamp: new Date()
       });
 
+      // Get user context for more personalized responses
+      const userContext = await getUserContext(userId);
+      
       // Generate AI response with empathy and insight
       const aiResponse = await generateAIResponse(
         conversationHistory,
         session,
         req.body.mood,
-        req.body.moodIntensity
+        req.body.moodIntensity,
+        userContext
       );
 
       // Add AI response to history
@@ -742,7 +746,18 @@ async function getUserContext(userId: string) {
     prisma.journalEntry.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: 5
+      take: 10,
+      select: {
+        id: true,
+        entryType: true,
+        promptText: true,
+        userResponse: true,
+        mood: true,
+        energyLevel: true,
+        createdAt: true,
+        framework: true,
+        aiAnalysis: true
+      }
     }),
     prisma.moodEntry.findMany({
       where: { userId },
@@ -754,13 +769,45 @@ async function getUserContext(userId: string) {
     })
   ]);
 
+  // Extract key themes and patterns from recent entries
+  const recentThemes: string[] = [];
+  const recentChallenges: string[] = [];
+  const recentAccomplishments: string[] = [];
+  
+  recentEntries.forEach(entry => {
+    if (entry.aiAnalysis) {
+      try {
+        const analysis = JSON.parse(entry.aiAnalysis);
+        if (analysis.key_themes) recentThemes.push(...analysis.key_themes);
+        if (analysis.challenges) recentChallenges.push(...analysis.challenges);
+        if (analysis.accomplishments) recentAccomplishments.push(...analysis.accomplishments);
+      } catch (e) {
+        // Ignore parsing errors
+      }
+    }
+  });
+
+  // Get unique themes (most recent first)
+  const uniqueThemes = [...new Set(recentThemes)].slice(0, 5);
+  const uniqueChallenges = [...new Set(recentChallenges)].slice(0, 3);
+  const uniqueAccomplishments = [...new Set(recentAccomplishments)].slice(0, 3);
+
+  // Calculate mood trend
+  const moodTrend = recentMoods.length >= 3 ? 
+    (recentMoods[0].intensity - recentMoods[recentMoods.length - 1].intensity) : 0;
+
   return {
     recentEntries,
     recentMoods,
     activeGoals,
     averageMood: recentMoods.length > 0 
       ? recentMoods.reduce((sum, m) => sum + m.intensity, 0) / recentMoods.length 
-      : 5
+      : 5,
+    recentThemes: uniqueThemes,
+    recentChallenges: uniqueChallenges,
+    recentAccomplishments: uniqueAccomplishments,
+    moodTrend,
+    lastEntryDate: recentEntries[0]?.createdAt || null
   };
 }
 
@@ -773,19 +820,39 @@ async function generateOpeningPrompt(userId: string, sessionType: string, framew
     };
   }
 
-  const prompt = `Generate a warm, personalized opening prompt for a journal session.
+  // Create a summary of recent journal context
+  const recentEntrySummary = context?.recentEntries?.slice(0, 3).map((entry: any) => ({
+    date: new Date(entry.createdAt).toLocaleDateString(),
+    type: entry.entryType,
+    mood: entry.mood,
+    excerpt: entry.userResponse?.substring(0, 100) + '...'
+  }));
+
+  const prompt = `Generate a warm, personalized opening prompt for a journal session that acknowledges the user's recent journaling history.
+
 Context:
 - Session type: ${sessionType}
 - Framework: ${framework || 'general'}
-- User's average mood: ${context?.averageMood || 'unknown'}
-- Active goals: ${context?.activeGoals?.length || 0}
+- User's average mood: ${context?.averageMood?.toFixed(1) || 'unknown'} (mood trend: ${context?.moodTrend > 0 ? 'improving' : context?.moodTrend < 0 ? 'declining' : 'stable'})
+- Active goals: ${context?.activeGoals?.map((g: any) => g.title).join(', ') || 'none'}
+- Recent themes: ${context?.recentThemes?.join(', ') || 'none identified'}
+- Recent challenges: ${context?.recentChallenges?.join(', ') || 'none identified'}
+- Recent accomplishments: ${context?.recentAccomplishments?.join(', ') || 'none identified'}
+- Last entry: ${context?.lastEntryDate ? new Date(context.lastEntryDate).toLocaleDateString() : 'no recent entries'}
+- Recent entry summary: ${JSON.stringify(recentEntrySummary || [])}
+
+Based on this context, create a personalized opening that:
+1. References something specific from their recent entries if relevant
+2. Acknowledges their mood trend or recent themes
+3. Feels like a continuation of an ongoing conversation
+4. Is warm and encouraging
 
 You must respond with valid JSON only. No other text.
 
 {
-  "prompt": "warm opening question",
-  "followUpQuestions": ["question1", "question2"],
-  "suggestedTopics": ["topic1", "topic2", "topic3"]
+  "prompt": "warm, personalized opening question that references their journey",
+  "followUpQuestions": ["contextual question 1", "contextual question 2"],
+  "suggestedTopics": ["topic based on recent themes", "topic 2", "topic 3"]
 }`;
 
   try {
@@ -809,7 +876,7 @@ You must respond with valid JSON only. No other text.
   }
 }
 
-async function generateAIResponse(conversationHistory: any[], session: any, mood?: string, moodIntensity?: number) {
+async function generateAIResponse(conversationHistory: any[], session: any, mood?: string, moodIntensity?: number, userContext?: any) {
   if (!anthropic) {
     return {
       response: "Thank you for sharing. Can you tell me more about that?",
@@ -821,14 +888,31 @@ async function generateAIResponse(conversationHistory: any[], session: any, mood
 
   const conversationText = conversationHistory.map(msg => `${msg.role}: ${msg.content}`).join('\n');
   
-  const prompt = `You are a compassionate AI journal companion having a conversation with someone.
+  // Create context summary from user's journal history
+  const contextSummary = userContext ? `
+User Context:
+- Recent themes in their journal: ${userContext.recentThemes?.join(', ') || 'none'}
+- Recent challenges: ${userContext.recentChallenges?.join(', ') || 'none'}
+- Recent accomplishments: ${userContext.recentAccomplishments?.join(', ') || 'none'}
+- Mood trend: ${userContext.moodTrend > 0 ? 'improving' : userContext.moodTrend < 0 ? 'declining' : 'stable'}
+- Active goals: ${userContext.activeGoals?.map((g: any) => g.title).join(', ') || 'none'}` : '';
+  
+  const prompt = `You are a compassionate AI journal companion having a conversation with someone. You have access to their recent journal history to provide more personalized support.
 
 Conversation so far:
 ${conversationText}
 
 ${mood ? `Current mood: ${mood} (intensity: ${moodIntensity}/10)` : ''}
+${contextSummary}
 
-Respond with empathy and insight. Ask thoughtful follow-up questions. Provide gentle guidance when appropriate.
+Respond with empathy and insight. When relevant:
+- Reference their recent themes or patterns you've noticed
+- Acknowledge their progress on challenges or goals
+- Build on previous conversations and insights
+- Ask thoughtful follow-up questions that go deeper
+- Provide gentle guidance when appropriate
+
+Make the conversation feel continuous and personal, like you remember their journey.
 
 You must respond with valid JSON only. No other text.
 
@@ -849,7 +933,7 @@ You must respond with valid JSON only. No other text.
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 500,
       temperature: 0.7,
-      system: 'You are an empathetic AI journal companion trained in supportive listening and gentle guidance.',
+      system: 'You are an empathetic AI journal companion with memory of the user\'s journal history. You provide personalized support by referencing their past entries, acknowledging their progress, and building on previous conversations. You are trained in supportive listening, gentle guidance, and helping users explore their thoughts and feelings deeply.',
       messages: [{ role: 'user', content: prompt }]
     });
 
@@ -1125,7 +1209,7 @@ async function generateWeeklyInsights(userId: string) {
       avgMoodIntensity: moods.length > 0 
         ? moods.reduce((sum, m) => sum + m.intensity, 0) / moods.length 
         : 0,
-      consistencyScore: entries.length / 7 * 100
+      consistencyScore: Math.min(100, (entries.length / 7) * 100)
     },
     moodAnalysis: {
       trend: "improving",

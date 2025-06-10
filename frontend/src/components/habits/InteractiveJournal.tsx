@@ -40,6 +40,7 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
   }>>([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStartingSession, setIsStartingSession] = useState(false);
   const [showSessionStart, setShowSessionStart] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showGoals, setShowGoals] = useState(false);
@@ -123,9 +124,8 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
 
   const startSession = async (sessionType: string, framework?: string) => {
     try {
-      setIsLoading(true);
-      setShowSessionStart(false);
-
+      setIsStartingSession(true);
+      
       const session = await journalService.startSession({
         sessionType: sessionType as 'morning' | 'evening' | 'mood_check' | 'weekly_review',
         framework: framework as 'gratitude' | 'cbt' | 'dream' | 'morning_pages' | 'reflection',
@@ -141,11 +141,12 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
         content: session.prompt,
         timestamp: new Date()
       }]);
+      setShowSessionStart(false);
     } catch (error: any) {
       console.error('Failed to start session:', error);
       toast.error(error.response?.data?.error || 'Failed to start journal session');
     } finally {
-      setIsLoading(false);
+      setIsStartingSession(false);
     }
   };
 
@@ -292,7 +293,18 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
   if (showSessionStart) {
     return (
       <div className={`space-y-6 ${className}`}>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 relative">
+          {/* Loading Overlay */}
+          {isStartingSession && (
+            <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                <p className="text-gray-700 dark:text-gray-300 font-medium">Starting your journal session...</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Preparing personalized prompts</p>
+              </div>
+            </div>
+          )}
+          
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
               <SparklesIcon className="w-6 h-6 text-indigo-500 mr-2" />
@@ -300,7 +312,8 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
             </h2>
             <button
               onClick={() => setShowSessionStart(false)}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              disabled={isStartingSession}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <XMarkIcon className="w-6 h-6" />
             </button>
@@ -345,7 +358,8 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
                   <button
                     key={type.value}
                     onClick={() => startSession(type.value)}
-                    className="flex items-start p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                    disabled={isStartingSession}
+                    className="flex items-start p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="text-2xl mr-3">{type.label.split(' ')[0]}</span>
                     <div className="text-left">
@@ -371,7 +385,8 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
                   <button
                     key={framework.value}
                     onClick={() => startSession('free_form', framework.value)}
-                    className="flex items-start p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-800/30 dark:hover:to-indigo-800/30 transition-colors"
+                    disabled={isStartingSession}
+                    className="flex items-start p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-800/30 dark:hover:to-indigo-800/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="text-2xl mr-3">{framework.label.split(' ')[0]}</span>
                     <div className="text-left">
