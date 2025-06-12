@@ -209,13 +209,13 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const startSession = async (sessionType: string, framework?: string) => {
+  const startSession = async (sessionType?: string, framework?: string) => {
     try {
       setIsStartingSession(true);
       
       const session = await journalService.startSession({
-        sessionType: sessionType as 'morning' | 'evening' | 'mood_check' | 'weekly_review',
-        framework: framework as 'gratitude' | 'cbt' | 'dream' | 'morning_pages' | 'reflection',
+        sessionType: sessionType ? sessionType as 'morning' | 'evening' | 'mood_check' | 'weekly_review' : undefined,
+        framework: framework as 'gratitude' | 'cbt' | 'dream' | 'morning_pages' | 'reflection' | undefined,
         context: {
           currentMood: currentMood || undefined,
           energyLevel: checkInData.energyLevel || undefined
@@ -410,34 +410,6 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
           </div>
 
           <div className="space-y-6">
-            {/* Mood Check */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                How are you feeling right now?
-              </label>
-              <QuickMoodSelector />
-              {currentMood && (
-                <div className="mt-3">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Intensity (1-10)
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={currentMoodIntensity}
-                    onChange={(e) => setCurrentMoodIntensity(parseInt(e.target.value))}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Mild</span>
-                    <span className="font-medium">{currentMoodIntensity}</span>
-                    <span>Intense</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Session Types */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -474,7 +446,7 @@ const InteractiveJournal: React.FC<InteractiveJournalProps> = ({ className }) =>
                 {journalHelpers.frameworks.map((framework) => (
                   <button
                     key={framework.value}
-                    onClick={() => startSession('free_form', framework.value)}
+                    onClick={() => startSession(undefined, framework.value)}
                     disabled={isStartingSession}
                     className="flex items-start p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-800/30 dark:hover:to-indigo-800/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
